@@ -46,7 +46,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<true/>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Caddie AI uses the camera so you can take a profile photo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
