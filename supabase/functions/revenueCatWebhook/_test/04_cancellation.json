@@ -1,0 +1,17 @@
+{
+  "api_version": "1.0",
+  "event": {
+    "type": "CANCELLATION",
+    "id": "evt_test_cancellation",
+    "event_timestamp_ms": 1781000000000,
+    "app_user_id": "verify-rc-pro@silexdev.com",
+    "aliases": ["verify-rc-pro@silexdev.com"],
+    "app_id": "app4182f2d023",
+    "product_id": "prod_UNQnQZbZ4pOtHo",
+    "cancel_reason": "UNSUBSCRIBE",
+    "expiration_at_ms": 1782600000000,
+    "store": "stripe",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

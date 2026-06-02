@@ -1,0 +1,18 @@
+{
+  "api_version": "1.0",
+  "event": {
+    "type": "INITIAL_PURCHASE",
+    "id": "evt_test_initial_pro_trial",
+    "event_timestamp_ms": 1780000000000,
+    "app_user_id": "verify-rc-pro@silexdev.com",
+    "aliases": ["verify-rc-pro@silexdev.com"],
+    "app_id": "app4182f2d023",
+    "product_id": "prod_UNQnQZbZ4pOtHo",
+    "period_type": "TRIAL",
+    "purchased_at_ms": 1780000000000,
+    "expiration_at_ms": 1780604800000,
+    "store": "stripe",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

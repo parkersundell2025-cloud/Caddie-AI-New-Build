@@ -1,0 +1,18 @@
+{
+  "_comment": "iOS CANCELLATION. Webhook should UPDATE subscription_status='cancelling' (NOT 'expired'). User retains access until expiration_at_ms.",
+  "api_version": "1.0",
+  "event": {
+    "type": "CANCELLATION",
+    "id": "evt_test_ios_cancellation",
+    "event_timestamp_ms": 1780300000000,
+    "app_user_id": "verify-rc-ios@silexdev.com",
+    "aliases": ["verify-rc-ios@silexdev.com"],
+    "app_id": "app63f79b5121",
+    "product_id": "month1_caddiePro",
+    "cancel_reason": "UNSUBSCRIBE",
+    "expiration_at_ms": 2005200000000,
+    "store": "app_store",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

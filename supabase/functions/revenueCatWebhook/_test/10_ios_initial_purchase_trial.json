@@ -1,0 +1,19 @@
+{
+  "_comment": "iOS INITIAL_PURCHASE with period_type=TRIAL. Should CREATE a new user_profile row with subscription_status='trial', subscription_plan='pro', trial_end_date 7 days out, revenuecat_app_user_id set.",
+  "api_version": "1.0",
+  "event": {
+    "type": "INITIAL_PURCHASE",
+    "id": "evt_test_ios_initial",
+    "event_timestamp_ms": 1780000000000,
+    "app_user_id": "verify-rc-ios@silexdev.com",
+    "aliases": ["verify-rc-ios@silexdev.com"],
+    "app_id": "app63f79b5121",
+    "product_id": "month1_caddiePro",
+    "period_type": "TRIAL",
+    "purchased_at_ms": 1780000000000,
+    "expiration_at_ms": 2000000000000,
+    "store": "app_store",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

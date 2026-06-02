@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/x-icon" href="https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/favicon.ico?raw=true" />
+    <link rel="icon" type="image/png" sizes="32x32" href="https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/favicon-32.png?raw=true" />
+    <link rel="icon" type="image/png" sizes="16x16" href="https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/favicon-16.png?raw=true" />
+    <link rel="apple-touch-icon" sizes="180x180" href="https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/apple-touch-icon-180.png?raw=true" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#a8d5a2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Caddie AI" />
+    <meta name="application-name" content="Caddie AI" />
+
+    <!-- Meta Pixel Code -->
+    <script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','3479477215550657');fbq('track','PageView');</script>
+    <!-- End Meta Pixel Code -->
+
+    <title>Caddie AI — AI Golf Coaching App for iPhone</title>
+    <meta name="description" content="Caddie AI is an AI-powered golf coaching app for iPhone. Personalized practice plans, an AI coach that knows your game and a competitive leaderboard." />
+    <meta property="og:title" content="Caddie AI — AI Golf Coaching App for iPhone" />
+    <meta property="og:description" content="Caddie AI is an AI-powered golf coaching app for iPhone. Personalized practice plans, an AI coach that knows your game and a competitive leaderboard." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/icon-512.png?raw=true" />
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            console.log('[SW] Registered:', reg.scope);
+          }).catch(function(err) {
+            console.warn('[SW] Registration failed:', err);
+          });
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=3479477215550657&ev=PageView&noscript=1"/></noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

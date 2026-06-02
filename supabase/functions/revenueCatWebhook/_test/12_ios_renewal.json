@@ -1,0 +1,19 @@
+{
+  "_comment": "iOS RENEWAL after trial converts. Webhook should UPDATE the existing profile to subscription_status='pro', subscription_plan='pro'.",
+  "api_version": "1.0",
+  "event": {
+    "type": "RENEWAL",
+    "id": "evt_test_ios_renewal",
+    "event_timestamp_ms": 1780200000000,
+    "app_user_id": "verify-rc-ios@silexdev.com",
+    "aliases": ["verify-rc-ios@silexdev.com"],
+    "app_id": "app63f79b5121",
+    "product_id": "month1_caddiePro",
+    "period_type": "NORMAL",
+    "purchased_at_ms": 1780200000000,
+    "expiration_at_ms": 2002600000000,
+    "store": "app_store",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

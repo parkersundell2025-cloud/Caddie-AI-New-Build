@@ -1,0 +1,18 @@
+{
+  "_comment": "iOS phantom EXPIRATION. event.expiration_at_ms is in the future (2000000000000 = May 2033), and after event 10 the profile's trial_end_date is also far in the future. Webhook should LOG the suspicion and return 200 with 'Ignored suspicious EXPIRATION' — NOT mark the user expired. Regression test for the bug that locked out real trialing users.",
+  "api_version": "1.0",
+  "event": {
+    "type": "EXPIRATION",
+    "id": "evt_test_ios_phantom_exp",
+    "event_timestamp_ms": 1780100000000,
+    "app_user_id": "verify-rc-ios@silexdev.com",
+    "aliases": ["verify-rc-ios@silexdev.com"],
+    "app_id": "app63f79b5121",
+    "product_id": "month1_caddiePro",
+    "expiration_reason": "UNSUBSCRIBE",
+    "expiration_at_ms": 2000000000000,
+    "store": "app_store",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

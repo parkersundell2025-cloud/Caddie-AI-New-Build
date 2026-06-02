@@ -1,0 +1,67 @@
+import { corsHeaders, json } from '../_shared/cors.ts';
+import { serviceClient, getUser } from '../_shared/supabase.ts';
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  try {
+    const user = await getUser(req);
+    if (user?.app_metadata?.role !== 'admin') return json({ error: 'Forbidden: Admin access required' }, 403);
+    const db = serviceClient();
+
+    let { email, stripeSubscriptionId, plan } = await req.json();
+    if (!email || !stripeSubscriptionId || !plan) {
+      return json({ error: 'Email, stripeSubscriptionId, and plan are required' }, 400);
+    }
+    // Supabase auth lowercases email on user creation, and RLS on user_profile
+    // is `user_email = auth.email()` (case-sensitive text comparison). If we
+    // inserted a mixed-case email here the user could never read their own
+    // profile and would be stuck on /subscribe-now forever.
+    email = email.toLowerCase().trim();
+    if (!stripeSubscriptionId.startsWith('sub_')) {
+      return json({ error: 'Invalid subscription ID format (must start with sub_)' }, 400);
+    }
+    if (!['basic', 'pro'].includes(plan)) {
+      return json({ error: 'Plan must be basic or pro' }, 400);
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const trialEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const { data: existing } = await db.from('user_profile').select('id').eq('user_email', email);
+    if ((existing?.length ?? 0) > 0) {
+      await db.from('user_profile').update({
+        subscription_status: 'trial',
+        subscription_plan: plan,
+        stripe_subscription_id: stripeSubscriptionId,
+        trial_start_date: today,
+        trial_end_date: trialEnd,
+      }).eq('id', existing![0].id);
+      return json({ success: true, message: `Updated UserProfile for ${email}`, action: 'updated' });
+    }
+
+    await db.from('user_profile').insert({
+      user_email: email,
+      first_name: email.split('@')[0],
+      subscription_status: 'trial',
+      subscription_plan: plan,
+      stripe_subscription_id: stripeSubscriptionId,
+      stripe_customer_id: `cus_manual_${Date.now()}`,
+      trial_start_date: today,
+      trial_end_date: trialEnd,
+      onboarding_complete: false,
+      current_handicap: 18,
+      goal_handicap: 10,
+      target_timeline: '6 months',
+      days_per_week: 3,
+      preferred_days: ['Saturday', 'Sunday', 'Wednesday'],
+      skill_driving: 3,
+      skill_iron_play: 3,
+      skill_short_game: 3,
+      skill_putting: 3,
+      skill_course_management: 3,
+    });
+    return json({ success: true, message: `Created UserProfile for ${email}`, action: 'created' });
+  } catch (error) {
+    return json({ error: (error as Error).message }, 500);
+  }
+});

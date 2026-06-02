@@ -1,0 +1,18 @@
+{
+  "_comment": "Phantom EXPIRATION: event.expiration_at_ms is in the future. Webhook should LOG + return 200 with 'Ignored suspicious EXPIRATION' message, NOT mark the user expired. This is the regression test for the bug that locked real trialing users out.",
+  "api_version": "1.0",
+  "event": {
+    "type": "EXPIRATION",
+    "id": "evt_test_expiration_phantom",
+    "event_timestamp_ms": 1780000000000,
+    "app_user_id": "verify-rc-pro@silexdev.com",
+    "aliases": ["verify-rc-pro@silexdev.com"],
+    "app_id": "app4182f2d023",
+    "product_id": "prod_UNQnQZbZ4pOtHo",
+    "expiration_reason": "UNSUBSCRIBE",
+    "expiration_at_ms": 1900000000000,
+    "store": "stripe",
+    "environment": "SANDBOX",
+    "entitlement_ids": ["caddiePro"]
+  }
+}

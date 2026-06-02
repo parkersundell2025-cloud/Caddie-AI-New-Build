@@ -1,0 +1,10 @@
+{
+  "_comment": "The TEST event that the RC dashboard 'Send test event' button sends. Webhook should ack with 200.",
+  "api_version": "1.0",
+  "event": {
+    "type": "TEST",
+    "id": "evt_test_test",
+    "event_timestamp_ms": 1780000000000,
+    "app_user_id": "test_app_user_id"
+  }
+}
