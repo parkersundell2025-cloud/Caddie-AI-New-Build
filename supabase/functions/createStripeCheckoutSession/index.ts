@@ -57,19 +57,42 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const plan = body?.plan as 'basic' | 'pro' | undefined;
     const returnUrlOrigin = body?.return_url_origin as string | undefined;
+    const overrideSuccessUrl = body?.success_url as string | undefined;
+    const overrideCancelUrl = body?.cancel_url as string | undefined;
     const withTrial = body?.trial !== false; // default to true (matches existing prod flow)
 
     if (!plan || !['basic', 'pro'].includes(plan)) {
       return json({ error: 'plan must be "basic" or "pro"' }, 400);
     }
-    if (!returnUrlOrigin) {
-      return json({ error: 'return_url_origin is required (typically window.location.origin)' }, 400);
-    }
-    // Basic protection against open-redirect via malformed origin.
-    try {
-      new URL(returnUrlOrigin);
-    } catch {
-      return json({ error: 'return_url_origin must be a valid URL' }, 400);
+
+    // Caller can either supply both success_url + cancel_url (preferred — used
+    // by Capacitor iOS/Android to pass caddieai:// custom-scheme URLs) or fall
+    // back to return_url_origin (web flow). One of the two paths must be
+    // satisfied.
+    let successUrl: string;
+    let cancelUrl: string;
+    if (overrideSuccessUrl && overrideCancelUrl) {
+      // Allow-list: only https:// (web) and caddieai:// (the iOS scheme
+      // registered in Info.plist) are permitted. Blocks open-redirect attacks
+      // that would otherwise let a caller fish a Stripe-branded redirect to
+      // an arbitrary destination.
+      const allowed = (u: string) => u.startsWith('https://') || u.startsWith('caddieai://');
+      if (!allowed(overrideSuccessUrl) || !allowed(overrideCancelUrl)) {
+        return json({ error: 'success_url and cancel_url must use https:// or caddieai:// scheme' }, 400);
+      }
+      successUrl = overrideSuccessUrl;
+      cancelUrl = overrideCancelUrl;
+    } else {
+      if (!returnUrlOrigin) {
+        return json({ error: 'return_url_origin is required (or pass success_url + cancel_url explicitly)' }, 400);
+      }
+      try {
+        new URL(returnUrlOrigin);
+      } catch {
+        return json({ error: 'return_url_origin must be a valid URL' }, 400);
+      }
+      successUrl = `${returnUrlOrigin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+      cancelUrl = `${returnUrlOrigin}/subscribe-now`;
     }
 
     const priceId = PRICE_BY_PLAN[plan];
@@ -101,8 +124,8 @@ Deno.serve(async (req: Request) => {
         metadata,
       },
       metadata,
-      success_url: `${returnUrlOrigin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${returnUrlOrigin}/subscribe-now`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       payment_method_types: ['card'],
       billing_address_collection: 'auto',
       // Allow promotion codes / coupons through Stripe Checkout — matches the

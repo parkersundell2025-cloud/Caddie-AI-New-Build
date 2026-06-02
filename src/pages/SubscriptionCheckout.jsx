@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { isAuthenticated } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
+import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 
 // Thin redirect page hit via /checkout?plan=basic|pro. Verifies the user is
 // signed in, asks createStripeCheckoutSession for a Session URL, then sends
@@ -25,12 +26,15 @@ export default function SubscriptionCheckout() {
       const planParam = (searchParams.get('plan') || 'basic').toLowerCase();
       const plan = ['basic', 'pro'].includes(planParam) ? planParam : 'basic';
 
-      const { data, error: invErr } = await supabase.functions.invoke('createStripeCheckoutSession', {
-        body: {
-          plan,
-          return_url_origin: window.location.origin,
-        },
-      });
+      const body = isNative()
+        ? {
+            plan,
+            success_url: `${NATIVE_URL_SCHEME}://checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${NATIVE_URL_SCHEME}://subscribe-now`,
+          }
+        : { plan, return_url_origin: window.location.origin };
+
+      const { data, error: invErr } = await supabase.functions.invoke('createStripeCheckoutSession', { body });
 
       if (invErr || !data?.session_url) {
         setError("Something went wrong starting checkout. Try again or email support@caddieaiapp.com.");
@@ -38,7 +42,7 @@ export default function SubscriptionCheckout() {
       }
 
       hasRedirected.current = true;
-      window.location.assign(data.session_url);
+      await openExternal(data.session_url);
     };
 
     run();

@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -10,6 +10,9 @@ import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { AnimatePresence, motion } from 'framer-motion';
 import { initializeAppSession } from '@/lib/appSessionState';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { isNative, NATIVE_URL_SCHEME } from '@/lib/platform';
 
 
 // Page imports
@@ -291,6 +294,30 @@ const AuthenticatedApp = () => {
   );
 };
 
+// On Capacitor, the iOS in-app browser closes when Stripe redirects to our
+// caddieai:// success_url; iOS hands the URL to the App plugin, which fires
+// appUrlOpen. We strip the scheme, navigate the SPA, and dismiss the
+// SafariViewController if it lingered. No-op on web.
+function DeepLinkRouter() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!isNative()) return;
+    const prefix = `${NATIVE_URL_SCHEME}://`;
+    let handle;
+    const register = async () => {
+      handle = await CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+        if (!url || !url.startsWith(prefix)) return;
+        const path = '/' + url.slice(prefix.length).replace(/^\/+/, '');
+        try { await Browser.close(); } catch { /* may already be closed */ }
+        navigate(path, { replace: true });
+      });
+    };
+    register();
+    return () => { handle?.remove?.(); };
+  }, [navigate]);
+  return null;
+}
+
 function ColorSchemeWatcher() {
   useEffect(() => {
     const apply = (dark) => {
@@ -311,6 +338,7 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <Router>
           <ColorSchemeWatcher />
+          <DeepLinkRouter />
           <AuthenticatedApp />
         </Router>
         <Toaster />
