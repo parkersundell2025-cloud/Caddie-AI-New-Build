@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Loader2, X, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import ProBadge from '@/components/badges/ProBadge';
 
 export default function PreRoundGamePlan({ onDismiss, onProceed }) {
   const [gamePlan, setGamePlan] = useState(null);
@@ -35,6 +36,7 @@ export default function PreRoundGamePlan({ onDismiss, onProceed }) {
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#a8d5a2' }}>
               Pre-Round Game Plan
             </p>
+            <ProBadge />
           </div>
           <button onClick={onDismiss} className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
             <X className="w-3.5 h-3.5 text-white/60" />

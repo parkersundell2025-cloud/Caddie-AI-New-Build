@@ -5,8 +5,10 @@ import { unwrap, getCurrentUser } from '@/lib/db';
 import { MessageCircle, Target, Plus, X } from 'lucide-react';
 import { formatHandicap } from '@/lib/handicapUtils';
 import { getDrillClub } from '@/lib/drillLibrary';
-import { getTrialDaysRemaining, isTrialExpired } from '@/lib/trialUtils';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
+import TrialEndingBanner from '@/components/trial/TrialEndingBanner';
+import TrialExpiredModal from '@/components/trial/TrialExpiredModal';
+import SubscriptionBanner from '@/components/trial/SubscriptionBanner';
 import PullToRefreshIndicator from '@/components/ui/PullToRefreshIndicator';
 import { AnimatePresence } from 'framer-motion';
 import SessionLogger from '@/components/home/SessionLogger';
@@ -211,6 +213,13 @@ export default function Home() {
         </p>
       </div>
 
+      {/* Trial / subscription state banners — each one self-gates on the
+          relevant subscription_status, so it's safe to render all of them
+          together. Order matters: TrialExpiredModal is a full-screen overlay
+          if active, so it sits above the rest of the page. */}
+      <SubscriptionBanner profile={profile} />
+      <TrialEndingBanner profile={profile} />
+
       {/* Today's Focus Card */}
       {!plan ? (
         <div className="rounded-3xl p-6 text-center space-y-4" style={{ backgroundColor: '#1a2e1a' }}>
@@ -336,6 +345,10 @@ export default function Home() {
       onShare={handleCelebrationShare}
       onDismiss={() => setCelebration(null)}
     />
+
+    {/* Full-screen overlay if the trial date has passed but the RC webhook
+        hasn't flipped status yet. Self-gates on isTrialExpired(profile). */}
+    <TrialExpiredModal profile={profile} />
     </>
   );
 }
