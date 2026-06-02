@@ -4,8 +4,6 @@ import { ChevronLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
 export default function AccountScreen() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
@@ -98,21 +96,12 @@ export default function AccountScreen() {
             <p className="text-sm text-foreground">{cancelSuccess}</p>
           </div>
         )}
-        {isIOS ? (
-          <a
-            href="itms-apps://apps.apple.com/account/subscriptions"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Manage Subscription in iOS Settings
-          </a>
-        ) : (
-          <button
-            onClick={() => { setCancelError(''); setCancelSuccess(''); setShowConfirm(true); }}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Cancel Subscription
-          </button>
-        )}
+        <button
+          onClick={() => { setCancelError(''); setCancelSuccess(''); setShowConfirm(true); }}
+          className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+        >
+          Cancel Subscription
+        </button>
         <button
           onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}
           className="text-xs text-destructive hover:text-red-700 transition-colors"

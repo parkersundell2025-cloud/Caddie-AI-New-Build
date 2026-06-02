@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { formatHandicap, capHandicap } from '@/lib/handicapUtils';
+import { isNative } from '@/lib/platform';
+import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const SKILLS = [
@@ -46,23 +48,56 @@ export default function EditProfile() {
     load();
   }, []);
 
-  const handlePhotoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !profile) return;
+  const uploadPhotoBlob = async (blob, ext) => {
+    if (!profile) return;
     setUploadingPhoto(true);
     try {
-      const fileExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
-      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
-      const { error: upErr } = await supabase.storage.from('profile-photos').upload(filePath, file, { upsert: true });
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('profile-photos')
+        .upload(filePath, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
       if (upErr) throw upErr;
       const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(filePath);
-      const updated = { ...form, profile_picture: publicUrl };
-      setForm(updated);
+      setForm(prev => ({ ...prev, profile_picture: publicUrl }));
       await unwrap(supabase.from('user_profile').update({ profile_picture: publicUrl }).eq('id', profile.id));
     } catch (e) {
       console.error('Photo upload failed:', e);
     }
     setUploadingPhoto(false);
+  };
+
+  // Native (iOS/Android): show the OS action sheet via @capacitor/camera —
+  // "Take Photo" / "Choose from Library" / "Cancel". Web: fall through to the
+  // hidden <input type="file"> ref.
+  const onCameraButtonClick = async () => {
+    if (!isNative()) {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const photo = await CapCamera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Prompt,
+        quality: 85,
+        allowEditing: false,
+      });
+      if (!photo?.webPath) return;
+      const blob = await fetch(photo.webPath).then(r => r.blob());
+      await uploadPhotoBlob(blob, photo.format || 'jpeg');
+    } catch (err) {
+      // User cancelled, denied permission, or plugin error — silent.
+      // Permission denial returns a thrown error per the Camera plugin docs.
+      if (err?.message && !/cancel/i.test(err.message)) {
+        console.warn('Camera plugin error:', err.message);
+      }
+    }
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    await uploadPhotoBlob(file, ext);
   };
 
   const update = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
@@ -152,7 +187,7 @@ export default function EditProfile() {
               )}
             </div>
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={onCameraButtonClick}
               disabled={uploadingPhoto}
               className="absolute -bottom-2 -right-2 w-8 h-8 bg-foreground rounded-full flex items-center justify-center border-2 border-background active:scale-95 transition-all"
             >

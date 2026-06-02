@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 
 const BG = '#1a2e1a';      // forest green (matches Welcome)
 const CREAM = '#f9f9f7';   // off-white text
 const SAGE = '#a8d5a2';    // sage button
 
-const redirectTo = () => `${window.location.origin}/gateway`;
+// Where the magic-link click / OAuth provider redirects back to. On native
+// (Capacitor iOS), the caddieai:// custom scheme is registered in Info.plist;
+// iOS hands the inbound URL to the App plugin's appUrlOpen event, which
+// DeepLinkRouter in App.jsx forwards into the SPA after running the Supabase
+// session exchange. On web, a regular https origin redirect — supabase-js
+// auto-detects the session in the URL via detectSessionInUrl.
+const redirectTo = () =>
+  isNative() ? `${NATIVE_URL_SCHEME}://gateway` : `${window.location.origin}/gateway`;
 
 const inputClass =
   'w-full px-4 py-3.5 rounded-xl bg-white/10 border border-white/20 text-white ' +
@@ -42,13 +50,26 @@ export default function SignIn() {
   };
 
   const signInWithApple = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    // On native, signInWithOAuth would navigate the WebView itself to Apple's
+    // auth page — which (a) breaks the app shell, and (b) Apple's auth page
+    // refuses to render in many embedded WebViews. Use skipBrowserRedirect to
+    // get the URL back and hand it to the Browser plugin (SafariViewController).
+    // After auth, Apple redirects to our caddieai://gateway custom scheme,
+    // appUrlOpen fires, DeepLinkRouter completes the session exchange.
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'apple',
-      options: { redirectTo: redirectTo() },
+      options: {
+        redirectTo: redirectTo(),
+        skipBrowserRedirect: isNative(),
+      },
     });
     if (error) {
       setStatus('error');
       setMessage(error.message);
+      return;
+    }
+    if (isNative() && data?.url) {
+      await openExternal(data.url);
     }
   };
 

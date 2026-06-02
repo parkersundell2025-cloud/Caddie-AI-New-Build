@@ -294,10 +294,11 @@ const AuthenticatedApp = () => {
   );
 };
 
-// On Capacitor, the iOS in-app browser closes when Stripe redirects to our
-// caddieai:// success_url; iOS hands the URL to the App plugin, which fires
-// appUrlOpen. We strip the scheme, navigate the SPA, and dismiss the
-// SafariViewController if it lingered. No-op on web.
+// On Capacitor, the iOS in-app browser closes when Stripe / Supabase redirects
+// to our caddieai:// custom scheme; iOS hands the URL to the App plugin, which
+// fires appUrlOpen. We dismiss the SafariViewController, complete any pending
+// Supabase auth session exchange (PKCE code or implicit-hash tokens), then
+// navigate the SPA. No-op on web.
 function DeepLinkRouter() {
   const navigate = useNavigate();
   useEffect(() => {
@@ -307,8 +308,45 @@ function DeepLinkRouter() {
     const register = async () => {
       handle = await CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
         if (!url || !url.startsWith(prefix)) return;
-        const path = '/' + url.slice(prefix.length).replace(/^\/+/, '');
         try { await Browser.close(); } catch { /* may already be closed */ }
+
+        // Manual parse instead of new URL() — URL constructor splits custom
+        // schemes inconsistently across engines (some put authority in host,
+        // some in pathname). caddieai://gateway?code=x#hash →
+        //   pathPart='gateway', searchStr='code=x', hashStr='hash'
+        const afterScheme = url.slice(prefix.length).replace(/^\/+/, '');
+        const [pathAndQuery, hashStr = ''] = afterScheme.split('#');
+        const [pathPart = '', searchStr = ''] = pathAndQuery.split('?');
+        const search = new URLSearchParams(searchStr);
+        const hash = new URLSearchParams(hashStr);
+
+        // PKCE: ?code=xxx — exchange for a real session. supabase-js stored
+        // the code_verifier in localStorage from the original signInWithOtp /
+        // signInWithOAuth call, so the same client instance can complete it.
+        if (search.has('code')) {
+          try {
+            await supabase.auth.exchangeCodeForSession(search.get('code'));
+          } catch (e) {
+            console.warn('[DeepLinkRouter] exchangeCodeForSession failed:', e?.message);
+          }
+        } else {
+          // Implicit: tokens in URL hash. Manually setSession.
+          const access_token = hash.get('access_token');
+          const refresh_token = hash.get('refresh_token');
+          if (access_token && refresh_token) {
+            try {
+              await supabase.auth.setSession({ access_token, refresh_token });
+            } catch (e) {
+              console.warn('[DeepLinkRouter] setSession failed:', e?.message);
+            }
+          }
+        }
+
+        // Strip auth params before SPA navigate — they've been consumed and
+        // shouldn't leak into Gateway's view. Keep any non-auth query params.
+        ['code', 'error', 'error_description'].forEach((k) => search.delete(k));
+        const cleanSearch = search.toString();
+        const path = '/' + pathPart + (cleanSearch ? `?${cleanSearch}` : '');
         navigate(path, { replace: true });
       });
     };
