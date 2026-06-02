@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import Logo from '@/components/layout/Logo';
+import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
@@ -100,18 +101,25 @@ export default function SubscribeNow() {
   const startCheckout = async (plan) => {
     setCheckoutLoading(plan);
     setCheckoutError('');
-    const { data, error } = await supabase.functions.invoke('createStripeCheckoutSession', {
-      body: {
-        plan,
-        return_url_origin: window.location.origin,
-      },
-    });
+    // Capacitor (ios/android): Stripe redirects back to caddieai:// custom
+    // scheme so the OS reopens our app and the App plugin fires appUrlOpen,
+    // which the deep-link router in App.jsx forwards into the SPA.
+    // Web: standard origin-based redirect.
+    const body = isNative()
+      ? {
+          plan,
+          success_url: `${NATIVE_URL_SCHEME}://checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${NATIVE_URL_SCHEME}://subscribe-now`,
+        }
+      : { plan, return_url_origin: window.location.origin };
+
+    const { data, error } = await supabase.functions.invoke('createStripeCheckoutSession', { body });
     if (error || !data?.session_url) {
       setCheckoutError("Something went wrong starting checkout. Please try again or email support@caddieaiapp.com.");
       setCheckoutLoading(null);
       return;
     }
-    window.location.assign(data.session_url);
+    await openExternal(data.session_url);
   };
 
   const handleRestoreAccess = async () => {
