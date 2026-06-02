@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { ChevronLeft } from 'lucide-react';
 
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
 export default function ManageSubscription() {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
@@ -59,23 +57,16 @@ export default function ManageSubscription() {
         )}
       </div>
 
-      {/* Cancel Subscription — required by Apple guideline 5.1.1 */}
+      {/* Cancel Subscription — in-app for Stripe subs. Phase 3 (RevenueCat)
+          will swap this for an "iOS Settings" link when subscription_source =
+          'app_store' (Apple guideline 5.1.1 requirement for IAP subs). */}
       <div className="px-5 py-6 border-t border-border text-center">
-        {isIOS ? (
-          <a
-            href="itms-apps://apps.apple.com/account/subscriptions"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Manage Subscription in iOS Settings
-          </a>
-        ) : (
-          <button
-            onClick={() => setShowConfirm(true)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Cancel Subscription
-          </button>
-        )}
+        <button
+          onClick={() => setShowConfirm(true)}
+          className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+        >
+          Cancel Subscription
+        </button>
       </div>
 
       {/* Cancel Confirmation Dialog */}
