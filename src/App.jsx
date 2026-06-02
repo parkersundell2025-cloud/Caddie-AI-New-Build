@@ -13,6 +13,12 @@ import { initializeAppSession } from '@/lib/appSessionState';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { isNative, NATIVE_URL_SCHEME } from '@/lib/platform';
+import { configureRevenueCat } from '@/lib/revenuecat';
+import { addPushTappedListener } from '@/lib/push-notifications';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Keyboard, KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
+import { Network } from '@capacitor/network';
+import { WifiOff } from 'lucide-react';
 
 
 // Page imports
@@ -356,6 +362,119 @@ function DeepLinkRouter() {
   return null;
 }
 
+// Configure RevenueCat once at app boot. Idempotent + safe on web; the wrapper
+// no-ops when isNative() is false or the API key is missing. Doing this once
+// up front means the SDK's internal customerInfo cache warms up before the
+// user reaches /subscribe-now, so the first plan-button tap doesn't pay the
+// cold-start latency.
+function RevenueCatBoot() {
+  useEffect(() => {
+    configureRevenueCat();
+  }, []);
+  return null;
+}
+
+// When the user taps a push notification, iOS opens our app and fires
+// pushNotificationActionPerformed with the notification's payload. If the
+// payload carries a `url` field shaped like the caddieai:// scheme, route it
+// through the same path-parsing pipeline DeepLinkRouter uses for inbound
+// browser deep-links — gives push payloads a single canonical way to deep-link
+// (`data: { url: "caddieai://plan" }` from the sendPushNotification body).
+function PushTapRouter() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!isNative()) return;
+    const prefix = `${NATIVE_URL_SCHEME}://`;
+    let handle;
+    const register = async () => {
+      handle = await addPushTappedListener((event) => {
+        const url = event?.notification?.data?.url;
+        if (typeof url !== 'string' || !url.startsWith(prefix)) return;
+        const afterScheme = url.slice(prefix.length).replace(/^\/+/, '');
+        const [pathAndQuery] = afterScheme.split('#');
+        const [pathPart = '', searchStr = ''] = pathAndQuery.split('?');
+        const path = '/' + pathPart + (searchStr ? `?${searchStr}` : '');
+        navigate(path);
+      });
+    };
+    register();
+    return () => { handle?.remove?.(); };
+  }, [navigate]);
+  return null;
+}
+
+// Routes that render on the brand dark-green background — need light status
+// bar text (white) to stay legible. Everything else is light-bg → dark text.
+// Keep the gateway / auth funnel routes here even though they redirect quickly:
+// the status bar style applies during the brief render before navigation.
+const DARK_BG_ROUTES = new Set([
+  '/', '/welcome', '/signin', '/create-account', '/onboarding',
+  '/subscribe-now', '/checkout', '/checkout/success', '/gateway', '/autologin',
+  '/customerportal',
+]);
+
+function StatusBarController() {
+  const location = useLocation();
+  useEffect(() => {
+    if (!isNative()) return;
+    const isDarkBg = DARK_BG_ROUTES.has(location.pathname);
+    StatusBar.setStyle({ style: isDarkBg ? Style.Light : Style.Dark }).catch(() => {});
+  }, [location.pathname]);
+  return null;
+}
+
+// One-time keyboard configuration. Native resize mode is the safer default
+// vs. ionic/body — iOS adjusts the WebView viewport when the keyboard slides
+// in, so fixed-position elements (sticky save buttons, bottom nav) reflow
+// instead of being covered. Accessory bar (the Done/Next toolbar) hidden for
+// a cleaner look — most inputs don't benefit from it.
+function KeyboardConfigurer() {
+  useEffect(() => {
+    if (!isNative()) return;
+    Keyboard.setResizeMode({ mode: KeyboardResize.Native }).catch(() => {});
+    Keyboard.setStyle({ style: KeyboardStyle.Default }).catch(() => {});
+    Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
+  }, []);
+  return null;
+}
+
+// Thin banner that appears at the top when the device loses connectivity.
+// Critical for golf-course UX — users on cellular dead zones need clear
+// signal that requests will fail. Works on both native (Network plugin) and
+// web (navigator.onLine + window online/offline events).
+function OfflineBanner() {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    if (!isNative()) {
+      const update = () => setOnline(navigator.onLine);
+      update();
+      window.addEventListener('online', update);
+      window.addEventListener('offline', update);
+      return () => {
+        window.removeEventListener('online', update);
+        window.removeEventListener('offline', update);
+      };
+    }
+    Network.getStatus().then((s) => setOnline(s.connected)).catch(() => {});
+    let handle;
+    Network.addListener('networkStatusChange', (s) => setOnline(s.connected))
+      .then((h) => { handle = h; })
+      .catch(() => {});
+    return () => { handle?.remove?.(); };
+  }, []);
+
+  if (online) return null;
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-[60] bg-destructive text-destructive-foreground py-2 px-4 flex items-center justify-center gap-2 text-xs font-semibold"
+      style={{ paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}
+    >
+      <WifiOff className="w-3.5 h-3.5" />
+      You're offline
+    </div>
+  );
+}
+
 function ColorSchemeWatcher() {
   useEffect(() => {
     const apply = (dark) => {
@@ -376,7 +495,12 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <Router>
           <ColorSchemeWatcher />
+          <RevenueCatBoot />
+          <KeyboardConfigurer />
+          <StatusBarController />
           <DeepLinkRouter />
+          <PushTapRouter />
+          <OfflineBanner />
           <AuthenticatedApp />
         </Router>
         <Toaster />

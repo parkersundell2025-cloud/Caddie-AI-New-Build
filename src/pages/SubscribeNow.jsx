@@ -6,6 +6,13 @@ import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import Logo from '@/components/layout/Logo';
 import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
+import {
+  getOfferings,
+  purchasePackage,
+  restorePurchases,
+  planForPackage,
+  hasAnyActiveEntitlement,
+} from '@/lib/revenuecat';
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
@@ -142,28 +149,71 @@ export default function SubscribeNow() {
     setRestoring(false);
   };
 
-  const handleIOSPurchase = (plan) => {
-    // Try native bridge first (Capacitor / WebView)
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PURCHASE', productId: plan === 'pro' ? 'com.caddieai.pro.monthly' : 'com.caddieai.basic.monthly' }));
+  // iOS layout entry point — covers both Mobile Safari iOS and the Capacitor
+  // app. Only the Capacitor case routes through RevenueCat IAP; Mobile Safari
+  // users have no native StoreKit, so they fall through to the existing Stripe
+  // Checkout via Browser plugin (which on web reduces to window.location.assign).
+  const handleIOSPurchase = async (plan) => {
+    if (!isNative()) {
+      startCheckout(plan);
       return;
     }
-    if (window.webkit?.messageHandlers?.caddie) {
-      window.webkit.messageHandlers.caddie.postMessage({ type: 'PURCHASE', productId: plan === 'pro' ? 'com.caddieai.pro.monthly' : 'com.caddieai.basic.monthly' });
+    setCheckoutLoading(plan);
+    setCheckoutError('');
+
+    // If RC isn't ready (no API key set yet, or no offering configured in the
+    // dashboard, or network failure), fall back to the Phase 2 Stripe-via-
+    // Browser-plugin flow so the app stays functional during the rollout.
+    // App Store 3.1.1 risk for digital subs, but tolerable during dev/TestFlight
+    // and trivially flipped once the RC dashboard is live.
+    const offering = await getOfferings();
+    const pkg = offering?.availablePackages?.find((p) => planForPackage(p) === plan);
+    if (!pkg) {
+      setCheckoutLoading(null);
+      startCheckout(plan);
       return;
     }
 
-    // Fallback — open Stripe Checkout in the browser (an iOS user without a
-    // native app yet still gets to subscribe via web).
-    startCheckout(plan);
+    try {
+      const { customerInfo } = await purchasePackage(pkg);
+      // RC webhook updates user_profile asynchronously. The customerInfo
+      // returned right here is RC's authoritative entitlement state — if it
+      // shows an active entitlement, we can skip /checkout/success polling
+      // and go straight to /home; otherwise we land on the polling page that
+      // waits for the webhook to write subscription_status.
+      if (hasAnyActiveEntitlement(customerInfo)) {
+        navigate('/home', { replace: true });
+      } else {
+        navigate('/checkout/success', { replace: true });
+      }
+    } catch (err) {
+      // RC throws PurchasesError on user-cancel — swallow silently. Surface
+      // anything else (network, billing, App Store unavailable) to the UI.
+      if (!err?.userCancelled && !/cancel/i.test(err?.message || '')) {
+        setCheckoutError(err?.message || 'Purchase failed. Please try again.');
+      }
+      setCheckoutLoading(null);
+    }
   };
 
-  const handleIOSRestore = () => {
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'RESTORE_PURCHASES' }));
-    } else if (window.webkit?.messageHandlers?.caddie) {
-      window.webkit.messageHandlers.caddie.postMessage({ type: 'RESTORE_PURCHASES' });
+  const handleIOSRestore = async () => {
+    if (!isNative()) {
+      handleRestoreAccess();
+      return;
     }
+    setRestoring(true);
+    setRestoreMsg('');
+    try {
+      const customerInfo = await restorePurchases();
+      if (hasAnyActiveEntitlement(customerInfo)) {
+        navigate('/home', { replace: true });
+      } else {
+        setRestoreMsg('No active subscription found to restore.');
+      }
+    } catch (err) {
+      setRestoreMsg(err?.message || 'Restore failed. Please try again.');
+    }
+    setRestoring(false);
   };
 
   if (loading) {

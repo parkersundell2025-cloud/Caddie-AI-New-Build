@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { alignRevenueCatAppUserId } from '@/lib/db';
+import { identifyRevenueCatUser } from '@/lib/revenuecat';
 
 const AuthContext = createContext();
 
@@ -28,7 +29,15 @@ export const AuthProvider = ({ children }) => {
     // so the RC webhook's fast lookup path matches future purchase/renewal/
     // cancellation events directly (instead of falling back to auth.admin.getUserById).
     // Idempotent + per-session cached internally; safe to call on every session tick.
-    if (u) alignRevenueCatAppUserId(u);
+    if (u) {
+      alignRevenueCatAppUserId(u);
+      // Native (iOS/Android): tell the RC SDK that the anonymous device
+      // session now belongs to this Supabase UUID. RC merges any pre-login
+      // purchases into the identified user — important when an iOS user
+      // taps Subscribe from the SubscribeNow page before completing sign-in
+      // (rare, but the SDK supports it). No-op on web.
+      identifyRevenueCatUser(u.id);
+    }
   };
 
   useEffect(() => {
