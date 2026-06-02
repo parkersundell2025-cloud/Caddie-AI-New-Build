@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, X, RefreshCw, Calendar, Loader2 } from 'lucide-react';
+import ProBadge from '@/components/badges/ProBadge';
 
 function MonthlyGamePlanModal({ plan, onClose, onRegenerate, regenerating }) {
   const now = new Date();
@@ -120,6 +121,7 @@ export default function MonthlyGamePlanCard({ userEmail }) {
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#a8d5a2' }}>
                 This Month's Game Plan
               </p>
+              <ProBadge />
             </div>
             <p className="text-white font-black text-lg" style={{ letterSpacing: '-0.5px' }}>{monthLabel}</p>
             {loading ? (

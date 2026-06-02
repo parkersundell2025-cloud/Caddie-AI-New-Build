@@ -4,6 +4,7 @@ import { unwrap, getCurrentUser } from '@/lib/db';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProBadge from '@/components/badges/ProBadge';
 
 function ReportCard({ report, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen || false);
@@ -96,7 +97,10 @@ export default function WeeklyReports() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-foreground">Weekly Performance Reports</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-foreground">Weekly Performance Reports</h3>
+          <ProBadge />
+        </div>
         <button
           onClick={handleGenerate}
           disabled={generating}

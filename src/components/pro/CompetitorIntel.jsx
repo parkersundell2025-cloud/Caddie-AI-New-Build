@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TrendingUp, Users, Loader2 } from 'lucide-react';
+import ProBadge from '@/components/badges/ProBadge';
 
 function PercentileBar({ percentile }) {
   if (percentile == null) return null;
@@ -58,6 +59,7 @@ export default function CompetitorIntel() {
       <div className="flex items-center gap-2">
         <TrendingUp className="w-4 h-4 text-muted-foreground" />
         <h3 className="font-bold text-foreground">Competitor Intel</h3>
+        <ProBadge />
       </div>
 
       {/* Handicap Range */}
