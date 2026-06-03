@@ -102,8 +102,15 @@ function RootRoute() {
           return;
         }
         
-        // Step 2: Check subscription status on UserProfile
-        const isPaidSub = (profile.subscription_status === 'basic' || profile.subscription_status === 'pro') && profile.stripe_subscription_id;
+        // Step 2: Check subscription status on UserProfile.
+        // Payment linkage = either a Stripe customer (web flow) OR a RevenueCat
+        // app user id (native iOS/Android via Apple IAP / Google Play Billing).
+        // Has to mirror SubscriptionGate.hasActiveSubscription — otherwise a
+        // RevenueCat-linked paid user lands on / and gets bounced to
+        // /subscribe-now (visible after Apple IAP launches).
+        const hasPaymentLinkage = !!profile.stripe_customer_id || !!profile.revenuecat_app_user_id;
+        const isPaidSub = hasPaymentLinkage
+          && (profile.subscription_status === 'basic' || profile.subscription_status === 'pro');
         const isValidTrial = profile.subscription_status === 'trial' &&
           profile.trial_start_date &&
           profile.trial_end_date &&
@@ -112,12 +119,16 @@ function RootRoute() {
         // until the period end date. Grant access.
         const isCancellingButActive = profile.subscription_status === 'cancelling'
           && (!profile.trial_end_date || profile.trial_end_date >= today);
-        const isGracePeriod = profile.subscription_status === 'trial' && 
-          profile.trial_start_date && 
-          profile.trial_end_date && 
-          profile.trial_end_date >= today && 
-          !profile.stripe_subscription_id && 
-          new Date(profile.trial_start_date) >= new Date(today.split('-').map((x, i) => i === 0 ? parseInt(x) - 0 : x).join('-'));
+        // Grace period: fresh-signup trial users who haven't yet been linked to
+        // a Stripe subscription. trial_start_date / trial_end_date / today are
+        // all 'YYYY-MM-DD' strings — string comparison is correct here and
+        // avoids the UTC-midnight footgun that bit getTrialDaysRemaining.
+        const isGracePeriod = profile.subscription_status === 'trial' &&
+          profile.trial_start_date &&
+          profile.trial_end_date &&
+          profile.trial_end_date >= today &&
+          !profile.stripe_subscription_id &&
+          profile.trial_start_date >= today;
         
         console.log('[RootRoute] isPaidSub:', isPaidSub);
         console.log('[RootRoute] isValidTrial:', isValidTrial);

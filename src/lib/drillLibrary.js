@@ -1,5 +1,7 @@
 // Caddie AI Proprietary Drill Library — used for progressive overload logic
 
+import { parseDateLocal } from '@/lib/dateUtils';
+
 export const DRILL_LIBRARY = {
   Driving: [
     { name: 'The Tempo Towel Drill', description: 'Train smooth rhythm and tempo in your swing', difficulty: 'Beginner', club: '7 Iron → Driver', reps: '15 swings with 7 iron, then 10 with driver', instructions: 'Tuck a small towel under your lead armpit. Make full swings without letting the towel drop. If it drops you are disconnecting your arms from your body at the top.', tip: 'If the towel drops on the backswing you are lifting your arms. If it drops on the downswing you are casting.' },
@@ -192,11 +194,11 @@ export function applyProgressiveOverload(drill, allDrillRatings) {
     .map(d => d.name);
 
   // Count Clicked ratings across ALL drills in same area+difficulty in last 14 days
-  const recentClicked = allDrillRatings.filter(r =>
-    drillsAtSameLevel.includes(r.drill_name) &&
-    r.rating === 'Clicked' &&
-    new Date(r.session_date) >= cutoff
-  );
+  const recentClicked = allDrillRatings.filter(r => {
+    if (!drillsAtSameLevel.includes(r.drill_name) || r.rating !== 'Clicked') return false;
+    const d = parseDateLocal(r.session_date);
+    return d && d >= cutoff;
+  });
 
   if (recentClicked.length >= 2) {
     const harderDrill = getHarderDrill(drill.name);
@@ -211,7 +213,7 @@ export function applyProgressiveOverload(drill, allDrillRatings) {
   // Struggled: check last 2 ratings on this specific drill
   const drillHistory = allDrillRatings
     .filter(r => r.drill_name === drill.name)
-    .sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
+    .sort((a, b) => (parseDateLocal(b.session_date)?.getTime() ?? 0) - (parseDateLocal(a.session_date)?.getTime() ?? 0))
     .slice(0, 2);
 
   if (drillHistory.length >= 2 && drillHistory[0].rating === 'Struggled' && drillHistory[1].rating === 'Struggled') {

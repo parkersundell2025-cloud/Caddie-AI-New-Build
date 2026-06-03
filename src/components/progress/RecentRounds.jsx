@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ChevronDown } from 'lucide-react';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 const CARD = { background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 };
 
@@ -26,7 +27,7 @@ function RoundCard({ round, handicapPar }) {
         <div className="min-w-0">
           <p className="font-bold truncate" style={{ color: 'rgba(255,255,255,0.9)' }}>{round.course_name || 'Unknown Course'}</p>
           <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            {round.round_date ? format(new Date(round.round_date), 'MMM d, yyyy') : ''}
+            {round.round_date ? format(parseDateLocal(round.round_date), 'MMM d, yyyy') : ''}
           </p>
         </div>
       </div>

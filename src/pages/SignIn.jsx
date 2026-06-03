@@ -106,8 +106,8 @@ export default function SignIn() {
         ) : (
           <div className="w-full space-y-5">
             <div className="text-center space-y-1.5">
-              <h1 className="font-fraunces text-2xl font-semibold">Welcome back</h1>
-              <p className="text-sm text-white/60">We'll email you a magic link to sign in.</p>
+              <h1 className="font-fraunces text-2xl font-semibold">Welcome to Caddie AI</h1>
+              <p className="text-sm text-white/60">Enter your email — we'll send you a magic link to sign in or get started.</p>
             </div>
 
             <form onSubmit={sendMagicLink} className="space-y-3">

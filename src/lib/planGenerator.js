@@ -4,6 +4,7 @@
  */
 
 import { DRILL_LIBRARY } from '@/lib/drillLibrary';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 const DIFFICULTY_ORDER = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -22,11 +23,11 @@ export function computeSkillMastery(drillRatings) {
     // For each difficulty level, count recent Clicked ratings
     for (const difficulty of DIFFICULTY_ORDER) {
       const drillNamesAtLevel = drills.filter(d => d.difficulty === difficulty).map(d => d.name);
-      const clickedCount = drillRatings.filter(r =>
-        drillNamesAtLevel.includes(r.drill_name) &&
-        r.rating === 'Clicked' &&
-        new Date(r.session_date) >= cutoff
-      ).length;
+      const clickedCount = drillRatings.filter(r => {
+        if (!drillNamesAtLevel.includes(r.drill_name) || r.rating !== 'Clicked') return false;
+        const d = parseDateLocal(r.session_date);
+        return d && d >= cutoff;
+      }).length;
 
       if (clickedCount >= 2) {
         // User has mastered this level — set mastery to next level up
@@ -49,7 +50,10 @@ export function getRecentDrillNames(drillRatings) {
   cutoff.setDate(cutoff.getDate() - 7);
   return [...new Set(
     drillRatings
-      .filter(r => new Date(r.session_date) >= cutoff)
+      .filter(r => {
+        const d = parseDateLocal(r.session_date);
+        return d && d >= cutoff;
+      })
       .map(r => r.drill_name)
   )];
 }

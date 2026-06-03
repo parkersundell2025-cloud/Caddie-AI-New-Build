@@ -419,8 +419,149 @@ The end-to-end pipeline (UI → Stripe → RC → mirror webhook → DB) was exe
 - **Real user data migration Base44 → client's Supabase** — one-time ETL during cutover. Pull existing customers' profiles/rounds/sessions/etc. from Base44, transform to Supabase schema, bulk insert. Riskiest piece because field-mapping mistakes corrupt history.
 - **Delete Base44 webhook integration** — final cutover step. The mirror has been running successfully alongside.
 
+### Phase 3 — Capacitor iOS native app (2026-06-01 to 2026-06-03)
+
+Two-day push spanning the Capacitor native iOS wrap, full push notification stack, App Store compliance items, and client-coordination work to get the app to a submittable state. Most code is **code-blind** — written without the corresponding Apple Developer / RevenueCat dashboard config in place (those are gated on the client). The app boots, signs in via magic link, navigates all screens; everything that depends on per-environment keys (real APNs delivery, real Apple IAP purchases, real Apple OAuth) lights up when the keys arrive.
+
+#### Strategic decisions
+
+| Decision | Choice | Why |
+|---|---|---|
+| **Bundle ID** | `com.caddieaiapp.app` (fresh, not the legacy `com.base69e5121277e4e0398b59c054.app`) | Old ID was Base44 auto-generated hash. Bundle IDs are permanent identity — crash reports, RC dashboard, every log shows it forever. Existing rejected record had nothing to preserve. |
+| **Capacitor version** | Capacitor 8 (current major) | Uses Swift Package Manager for plugin integration (not CocoaPods). One less moving part. Documented as `[[capacitor-uses-spm-not-pods]]` memory. |
+| **Native auth callback** | Custom `caddieai://` URL scheme (not Universal Links yet) | Custom scheme works today without DNS/entitlement; Universal Links is polish for post-launch when DNS access settled. |
+| **iOS payment provider** | RevenueCat IAP with Stripe-via-Browser-plugin fallback | RC IAP is App-Store-compliant for digital subs (Apple 3.1.1). Stripe-via-Browser is a temporary fallback so the app stays functional during the dashboard-config gap. Code path is `getOfferings() === null → startCheckout()` — flips off once RC dashboard is live. |
+| **Push delivery transport** | Direct APNs HTTP/2 with ES256 JWT signing in Deno Edge Function | No third-party push service (OneSignal, FCM-as-proxy) for iOS. Cleaner secret management — only Apple's `.p8` key on Supabase secrets. Will add FCM for Android in Phase 4. |
+| **Sign-in / sign-up UX** | Single magic-link screen serving both (consolidated by previous developer) | Was "Welcome back" → confusing for new users. Copy changed to "Welcome to Caddie AI" / "Enter your email — we'll send you a magic link to sign in or get started" so both audiences feel welcomed. |
+| **Trial users get full Pro access** | Yes (matches original Base44 implementation) | Apple-friendlier "try before you buy" story. `hasProAccess` updated. |
+
+#### Native plugins installed + wired
+
+| Plugin | Code surface |
+|---|---|
+| `@capacitor/app` | `App.appUrlOpen` → `DeepLinkRouter` in `App.jsx`. Parses `caddieai://path?query` into SPA navigations. Also handles auth-code-exchange (`?code=` → `supabase.auth.exchangeCodeForSession`) and implicit hash tokens (`#access_token=` → `setSession`). |
+| `@capacitor/browser` | `openExternal(url)` helper in `src/lib/platform.js`. Used by SubscribeNow + SubscriptionCheckout for Stripe Checkout on native (Phase-2 fallback path). Also wraps Apple OAuth: `signInWithOAuth({ provider: 'apple', skipBrowserRedirect: true })` → `Browser.open(data.url)` → redirect back via custom scheme. |
+| `@capacitor/camera` | Replaces HTML file input in `EditProfile.jsx`. `Camera.getPhoto({ source: Prompt })` shows iOS native action sheet. Returned `webPath` fetched as Blob, uploaded to Supabase Storage's `profile-photos` bucket. Permissions: `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription` added to Info.plist. |
+| `@capacitor/push-notifications` | `src/lib/push-notifications.js` wrapper exports `checkPushPermission` / `requestPushPermission` / `registerForPush` / `enablePushAndGetToken` plus listener helpers. `registerForPush` has a 10-second timeout fallback (without `aps-environment` entitlement iOS silently drops `register()` without firing either event — promise would hang forever). |
+| `@revenuecat/purchases-capacitor` | `src/lib/revenuecat.js` wrapper exports `configureRevenueCat` / `identifyRevenueCatUser` / `getOfferings` / `purchasePackage` / `restorePurchases` / `getCustomerInfo` plus `hasAnyActiveEntitlement` / `planForPackage` helpers. All safe no-ops on web. Configured at app boot via `<RevenueCatBoot />` component; user identified at sign-in via `identifyRevenueCatUser` in `AuthContext.applySession`. |
+| `@capacitor/status-bar` | `<StatusBarController />` component uses `useLocation` to flip Style.Light/Dark per route. Dark-bg routes (Welcome, SignIn, Onboarding, SubscribeNow, etc.) get Light style (white text); everything else gets Dark (black text). **Critical fix:** `UIViewControllerBasedStatusBarAppearance` had to be flipped from `true` to `false` in Info.plist — otherwise iOS only honored the view controller's style and silently ignored some plugin calls. |
+| `@capacitor/keyboard` | `<KeyboardConfigurer />` sets `Keyboard.setResizeMode({ mode: KeyboardResize.Native })` so iOS adjusts the WebView frame when keyboard appears, plus hides the accessory bar. |
+| `@capacitor/network` | `<OfflineBanner />` renders a thin "You're offline" banner at top when `networkStatusChange` fires `connected: false`. Works on web too (uses `navigator.onLine` + window events). |
+
+#### Edge functions deployed (this phase)
+
+| Function | Purpose | Key behavior |
+|---|---|---|
+| **`sendPushNotification`** (~200 lines) | Sends APNs push to a user's iOS devices | Service-role auth (string compare against `SUPABASE_SERVICE_ROLE_KEY` — must not be reachable from frontend). Looks up `device_token` rows for the target user. Builds APNs JWT (ES256 over `.p8` PKCS#8 key using Web Crypto), cached ~50min across calls within the same worker. POSTs to `api.push.apple.com/3/device/{token}` (or sandbox). On `410 Gone` → deletes the stale token row. Returns `{sent, failed, deleted}`. |
+| **`deleteAccount`** (existed; deployed + fixed) | Apple 5.1.1(v) compliance — in-app account deletion | Was sitting unported. Deployed with one fix: added `device_token` to the `USER_TABLES` cleanup list so the new push-notification table is wiped too. Cancels Stripe sub if present (best-effort), deletes from 18 user-owned tables + referrals (both directions), deletes `user_profile`, then `auth.admin.deleteUser`. Verified end-to-end. |
+| **`createStripeCheckoutSession`** (deployed) | Was code-complete from Phase 2 but never deployed | Now reachable. Updated in Phase 2-mid to support optional `success_url` + `cancel_url` overrides so native Capacitor can pass `caddieai://` schemes. |
+
+#### Migrations applied
+
+- `20260602000001_device_token.sql` — one row per (user, device). Columns: `id`, `user_email` (lowercased for RLS), `platform` (`ios`/`android` check constraint), `token` (UNIQUE), `created_at`, `updated_at`. Trigger `device_token_touch_updated_at` bumps `updated_at` on UPDATE. RLS for owners only; service-role bypasses for the backend sender.
+- `20260602000002_notification_push_trigger.sql` — `pg_net` extension + `notify_user_push_on_notification_insert` function + AFTER INSERT trigger on `public.notification`. Checks recipient's `notification_preferences.push_enabled`, maps notification `type` to push title + `caddieai://` deep-link URL, fires `sendPushNotification` via `pg_net.http_post`. Failures swallowed with `RAISE WARNING` so a broken push pipeline can't block the underlying notification insert.
+
+#### Vault secrets (Supabase-managed encrypted storage)
+
+The trigger above reads two secrets via `vault.decrypted_secrets`. Set via SQL editor (not `ALTER DATABASE`, which Supabase managed Postgres blocks):
+
+```sql
+SELECT vault.create_secret('https://<project-ref>.supabase.co', 'supabase_url', '...');
+SELECT vault.create_secret('<service_role_key>', 'service_role_key', '...');
+```
+
+Both must be present for the trigger to fire.
+
+#### Frontend changes
+
+| File | Change |
+|---|---|
+| `src/lib/platform.js` (new) | `isNative()`, `getPlatform()`, `openExternal()`, `NATIVE_URL_SCHEME='caddieai'`. The contract for "where do we open external URLs" lives here. |
+| `src/lib/revenuecat.js` (new) | RC SDK wrapper (see plugins table). |
+| `src/lib/push-notifications.js` (new) | Push wrapper (see plugins table). |
+| `src/App.jsx` | New components: `<RevenueCatBoot />`, `<KeyboardConfigurer />`, `<StatusBarController />`, `<DeepLinkRouter />`, `<PushTapRouter />`, `<OfflineBanner />`. Mounted inside `<Router>` so `useLocation` / `useNavigate` work. DeepLinkRouter parses `caddieai://` URLs manually (the URL constructor splits custom schemes inconsistently), runs PKCE or implicit auth exchange if relevant, strips auth params, navigates the SPA. |
+| `src/lib/AuthContext.jsx` | `applySession` now also calls `identifyRevenueCatUser(u.id)` on native after `alignRevenueCatAppUserId`. |
+| `src/pages/SignIn.jsx` | `emailRedirectTo: caddieai://gateway` on native; Apple OAuth uses `skipBrowserRedirect: true` + `Browser.open()` so the auth page doesn't navigate the WebView itself. Headline copy: "Welcome back" → "Welcome to Caddie AI"; subtitle now inclusive of first-time visitors. |
+| `src/pages/SubscribeNow.jsx` | `handleIOSPurchase` replaced legacy `window.ReactNativeWebView` / `window.webkit.messageHandlers.caddie` bridge attempts with real `Purchases.purchasePackage`. Falls back to Stripe-via-Browser-plugin when `getOfferings()` returns null (no RC API key yet). `handleIOSRestore` calls real `Purchases.restorePurchases`. |
+| `src/pages/SubscriptionCheckout.jsx` | Mirrors SubscribeNow's startCheckout logic — passes `caddieai://` success/cancel URLs on native, opens via Browser plugin. |
+| `src/pages/EditProfile.jsx` | Refactored photo upload into shared `uploadPhotoBlob` helper. New `onCameraButtonClick` branches: native → `Camera.getPhoto({ source: Prompt })` → fetch webPath as Blob → upload. Web → file input click (unchanged). |
+| `src/pages/NotificationPreferences.jsx` | New push toggle (native only, hidden on web). State machine: `unsupported` / `loading` / `enabled` / `disabled` / `denied`. Disable just flips `notification_preferences.push_enabled` without deleting the device_token row (so re-enabling doesn't re-prompt iOS). |
+| `src/pages/AccountScreen.jsx`, `src/pages/ManageSubscription.jsx` | Removed UA-sniffed `isIOS` branch that pointed users to `itms-apps://` for Stripe-backed subs (dead-end). Always shows in-app Cancel button. Source-aware branching deferred to RevenueCat-IAP phase. |
+| `src/components/badges/ProBadge.jsx` (new) | Small sage chip showing "PRO" — wired into 4 Pro feature cards. |
+| `src/components/trial/TrialEndingBanner.jsx` (new) | Day-6 banner on `/home` when `getTrialDaysRemaining(profile) === 1`. |
+| `src/components/trial/TrialExpiredModal.jsx` (new) | Full-screen modal when `isTrialExpired(profile)`. Race-condition fallback. |
+| `src/components/trial/SubscriptionBanner.jsx` (restored from stub) | Persistent banner when `subscription_status === 'expired'`. Links to `/subscribe-now` only (avoids the 3.1.3(f) anti-steering the previous version had). |
+| `src/lib/subscription.js` | `hasProAccess` now returns true for `'pro'` AND non-expired `'trial'`. Was Pro-only. |
+| `src/components/pro/MonthlyGamePlanCard.jsx`, `PreRoundGamePlan.jsx`, `WeeklyReports.jsx`, `CompetitorIntel.jsx` | Added `<ProBadge />` next to each card title. |
+
+#### iOS shell + entitlements
+
+- `ios/App/App/Info.plist`:
+  - `CFBundleURLTypes` registered the `caddieai` scheme
+  - `NSCameraUsageDescription` + `NSPhotoLibraryUsageDescription` + `NSPhotoLibraryAddUsageDescription`
+  - `UIViewControllerBasedStatusBarAppearance` flipped from `true` to `false` so the Status Bar plugin works
+- Xcode capabilities — Push Notifications + Background Modes → Remote notifications + Sign in with Apple — **pending** until silexdev is added to the Apple Developer Program team (currently blocked on Parker's Individual enrollment, see _Client coordination_ below)
+
+#### Dev tooling additions
+
+- `gen-magic-link.mjs` — service-role script that calls `supabase.auth.admin.generateLink({ type: 'magiclink', email, redirectTo: 'caddieai://gateway' })` to produce a magic link URL without going through SMTP. Used during the period when Resend wasn't set up yet and Supabase's built-in sender was rate-limited.
+- `audit-supabase.mjs` — anon-key table-existence check via PostgREST. Used to confirm migrations applied.
+
+#### Client coordination
+
+The day's work hit two blockers that required emailing Parker (client):
+
+1. **Bundle ID, IAP products, RevenueCat connection, Resend SMTP, DNS access, Anthropic key** — initial omnibus email. Parker responded: new App Store Connect record at `com.caddieaiapp.app` created, silexdev added as admin; Resend account fully set up with verified `caddieaiapp.com` domain (`re_Ubn9njY5...` API key); IONOS DNS willing to add records or grant user access.
+
+2. **Apple Developer Program access** — silexdev added as App Store Connect Admin but does not appear on developer.apple.com (the team where signing certificates, push notification keys, Sign in with Apple keys, and provisioning profiles live). App Store Connect and Apple Developer Program are separate permission systems even though it's the same team. **Root cause confirmed:** Parker's enrollment is **Individual**, not Organization — Individual enrollments support exactly one person (the enrollee) on the Apple Developer Program team. No way to add silexdev. Two-track resolution emailed to Parker:
+   - **Long-term:** convert Individual → Organization (requires D-U-N-S number for business, ~5-7 days to apply at dnb.com; Apple processing 1-2 weeks once paperwork is in)
+   - **In the meantime:** Parker generates the assets we need (APNs key, Sign in with Apple Service ID + key, eventually Distribution Certificate + Provisioning Profile) and sends them; silexdev uses Manual signing in Xcode to build + sign locally. See `SUBMISSION_CHECKLIST.md` § _Manual signing workaround_.
+
+#### Resend SMTP wired (Path A)
+
+End of day: Supabase Auth → SMTP Settings configured against Resend with the verified `caddieaiapp.com` domain. Magic links now deliver to any address, not just the Resend-account-owner's. The Path B workaround (using `onboarding@resend.dev` sender, only delivers to admin@silexdev.com) was used during the bring-up; swapped out once Parker provided the API key.
+
+| Setting | Value |
+|---|---|
+| Sender email | `noreply@caddieaiapp.com` |
+| Sender name | `Caddie AI` |
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Parker's API key (rotated before cutover; see `CUTOVER.md`) |
+
+Bug encountered + fixed during setup: initial config returned `535 Invalid username` — the Username field was the wrong value. Resend SMTP wants the literal string `resend` (lowercase), not the account email.
+
+#### Verifications
+
+- **App boots** in iPhone 17 simulator across multiple rebuilds (initial 4:18 cold build, ~5-30s incremental thereafter)
+- **Native auth end-to-end** verified once via the `gen-magic-link.mjs` shortcut (before Resend was wired) — generated link → pasted into Simulator Safari → followed redirect chain → `caddieai://gateway` → iOS opened the Caddie AI app → `DeepLinkRouter` ran the PKCE code exchange → landed signed in
+- **simctl push** for `PushTapRouter` — `xcrun simctl push <device-id> com.caddieaiapp.app push-test.json` with a payload containing `data.url = caddieai://plan` → notification banner appeared → tap → app navigated to `/plan`. Proves the iOS receive side end-to-end without needing real APNs.
+- **Status bar style** verified visible on `/home` (black text on cream) after the `UIViewControllerBasedStatusBarAppearance` flip
+- **Camera plugin** — confirmed working by the user (action sheet shows correctly, photo selection lands in Supabase Storage)
+- **Cancel Subscription** UI flow + dialog confirmed working
+- **deleteAccount end-to-end** verified on web (using a throwaway `tony_tamer@hotmail.com` account, signed in with Supabase's built-in SMTP temporarily) — five-table verification query returned all zeros after delete
+
+#### What's still pending after this phase
+
+All blocked on either client deliverables, post-cutover items, or polish:
+
+- **Apple Developer Program access for silexdev** — gated on Parker either converting to Organization (~2-3 weeks) or generating Manual signing assets (`.p12` + `.mobileprovision`). Until either happens, can't build signed App Store builds.
+- **APNs `.p8` key** — Parker generates via developer.apple.com. Once received: `npx supabase secrets set APNS_AUTH_KEY=... APNS_KEY_ID=... APNS_TEAM_ID=... APNS_BUNDLE_ID=com.caddieaiapp.app APNS_USE_SANDBOX=true`. Push delivery activates immediately.
+- **Sign in with Apple Service ID + Key** — Parker generates. Apple OAuth provider config in Supabase Auth → Providers → Apple. "Continue with Apple" works.
+- **RevenueCat iOS public API key** — Parker syncs IAP products in RC dashboard, sends `appl_...` key. Set `VITE_REVENUECAT_IOS_KEY` in `.env.local`, rebuild. SubscribeNow flow switches from Stripe-via-Browser-plugin fallback to real Apple IAP.
+- **IONOS DNS access** — Parker either adds Tony as IONOS user (preferred) or adds records on request. Needed for Vercel deploy + Universal Links setup later.
+- **Vercel account** — Parker creates Pro account ($20/mo, commercial use requires it), invites silexdev as Team member. Needed for production frontend deploy.
+- **Designer assets** — app icon (1024×1024) + splash screen (2732×2732) source images. Once received, `@capacitor/assets` generates all variants.
+- **App Store metadata** — most can be pulled from the previous Base44 submission (still in the rejected App Store Connect record).
+- **Source-aware Cancel UX** — when `subscription_source === 'app_store'` (Apple IAP via RC), Cancel must link to iOS Settings (Apple 5.1.1). Currently always in-app. Code change is small; depends on RC populating the source field, which depends on RC dashboard being live.
+- **Universal Links** — replaces custom scheme for production. Needs DNS + Associated Domains entitlement. Code-prep deferred.
+- **Trial UX visual verification** — banners coded and wired; not yet eyeballed in each state. SQL state-flipping queries in `SUBMISSION_CHECKLIST.md`.
+
+See `SUBMISSION_CHECKLIST.md` for the comprehensive list with checkboxes.
+
 ### Pending / housekeeping
 
 - **Service-role JWT rotation** — was shared in the testing session to drive admin-API operations. Rotate via Supabase dashboard → Project Settings → API → Reset on `service_role` when testing completes.
-- **Trial-experience features** — see *Migration drift* section of `src/APP_STORE_COMPLIANCE.md`. Day-6 banner, day-7 modal, PRO badges, and trial-→-Pro access were removed during migration and need product-side review before App Store resubmission.
-- **Capacitor iOS + Android wrappers** — separate workstream, starts 2026-06-01. Key integration point: call `Purchases.shared.logIn(supabaseUserId)` after Supabase auth completes in the native app so iOS purchases attribute to the right App User ID (parallels what `alignRevenueCatAppUserId` does for web). iOS product IDs `month1_caddie` (Basic) and `month1_caddiePro` (Pro) are already configured in RC and mapped to the `caddiePro` entitlement. The webhook's iOS path (`event.app_id === 'app63f79b5121'`) is already wired and ready for App Store purchase events.
+- **Resend API key rotation** — Parker's `re_Ubn9njY5...` key was shared by email and lives in Supabase SMTP config. Worth rotating before cutover (line item in `CUTOVER.md`).
+- **Capacitor Android workstream** — see scope. Phase 4. Once iOS is submitted, add Android platform: `npx cap add android`, register `caddieai://` scheme in `AndroidManifest.xml`, wire FCM for push delivery (Android side of the same trigger), submit to Play Store.
