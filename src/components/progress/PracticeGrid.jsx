@@ -1,6 +1,16 @@
 import React from 'react';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 const CARD = { background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 };
+
+// Format a local-time Date as 'YYYY-MM-DD' — keep day keys consistent with
+// session_date strings stored in Postgres.
+const toLocalDateString = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 export default function PracticeGrid({ sessions }) {
   const days = [];
@@ -8,13 +18,14 @@ export default function PracticeGrid({ sessions }) {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    days.push(d.toISOString().split('T')[0]);
+    days.push(toLocalDateString(d));
   }
 
   const sessionDates = new Set((sessions || []).map(s => s.session_date));
 
   const thisMonthSessions = (sessions || []).filter(s => {
-    const d = new Date(s.session_date);
+    const d = parseDateLocal(s.session_date);
+    if (!d) return false;
     const now = new Date();
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });

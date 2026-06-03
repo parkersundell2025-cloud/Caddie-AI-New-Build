@@ -5,7 +5,7 @@ const USER_TABLES = [
   'chat_message', 'drill_rating', 'session_log', 'round', 'handicap_entry',
   'practice_plan', 'weekly_insight', 'badge', 'leaderboard_entry', 'weekly_report',
   'monthly_game_plan', 'notification', 'flagged_round', 'flagged_account',
-  'hall_of_fame', 'feedback', 'waitlist_credit',
+  'hall_of_fame', 'feedback', 'waitlist_credit', 'device_token',
 ];
 
 Deno.serve(async (req) => {

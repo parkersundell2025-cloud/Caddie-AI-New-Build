@@ -5,6 +5,7 @@ import { unwrap, getCurrentUser } from '@/lib/db';
 import ReferralPopup from './ReferralPopup';
 import ReviewPopup from './ReviewPopup';
 import LeaderboardJoinPopup from './LeaderboardJoinPopup';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 export default function SmartPopupController() {
   const [activePopup, setActivePopup] = useState(null); // 'referral' | 'review' | null
@@ -48,9 +49,10 @@ export default function SmartPopupController() {
     if (!p.popup_referral_shown && !p.referral_page_visited) {
       const isPaid = p.subscription_status === 'basic' || p.subscription_status === 'pro';
       if (!isPaid && p.trial_start_date) {
-        const trialStart = new Date(p.trial_start_date);
-        const today = new Date();
-        const daysSinceStart = Math.floor((today - trialStart) / (1000 * 60 * 60 * 24));
+        const trialStart = parseDateLocal(p.trial_start_date);
+        const daysSinceStart = trialStart
+          ? Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
         if (daysSinceStart >= 5) { // day 6 = index 5
           await unwrap(supabase.from('user_profile').update({ popup_referral_shown: true }).eq('id', p.id).select().single());
           setActivePopup('referral');

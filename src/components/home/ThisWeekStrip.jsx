@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/db';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 export default function ThisWeekStrip({ userEmail }) {
   const [activityDays, setActivityDays] = useState(new Set());
@@ -22,18 +23,19 @@ export default function ThisWeekStrip({ userEmail }) {
         unwrap(supabase.from('user_profile').select('*').eq('user_email', userEmail)),
       ]);
 
-      // Find days with activity this week
+      // Find days with activity this week. Date keys come straight from the
+      // 'YYYY-MM-DD' string so we don't round-trip through UTC.
       const daysWithActivity = new Set();
       sessionLogs.forEach(s => {
-        const d = new Date(s.session_date);
-        if (d >= weekStart && d <= today && s.completed) {
-          daysWithActivity.add(d.toISOString().split('T')[0]);
+        const d = parseDateLocal(s.session_date);
+        if (d && d >= weekStart && d <= today && s.completed) {
+          daysWithActivity.add(s.session_date);
         }
       });
       roundList.forEach(r => {
-        const d = new Date(r.round_date);
-        if (d >= weekStart && d <= today) {
-          daysWithActivity.add(d.toISOString().split('T')[0]);
+        const d = parseDateLocal(r.round_date);
+        if (d && d >= weekStart && d <= today) {
+          daysWithActivity.add(r.round_date);
         }
       });
 
@@ -56,14 +58,22 @@ export default function ThisWeekStrip({ userEmail }) {
     return d;
   });
 
-  const todayStr = today.toISOString().split('T')[0];
+  // Format a local-time Date as 'YYYY-MM-DD' — keep keys consistent with
+  // session_date / round_date strings stored in `activityDays`.
+  const toLocalDateString = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const todayStr = toLocalDateString(today);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-6">
         <div className="flex items-center gap-2">
           {dayDates.map((d, i) => {
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = toLocalDateString(d);
             const isToday = dateStr === todayStr;
             const hasActivity = activityDays.has(dateStr);
 

@@ -6,6 +6,7 @@ import { Send, Loader2 } from 'lucide-react';
 import { isCoachFreshOpen, markCoachAsOpened } from '@/lib/appSessionState';
 import { formatHandicap, isPlusHandicap } from '@/lib/handicapUtils';
 import { buildClubDistanceContext } from '@/lib/clubDistances';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 const DRILL_LIBRARY = `DRIVING: The Tempo Towel Drill (Beginner, 7 Iron→Driver, 15+10 swings), The Gate Drill — Driver (Beginner, Driver, 20 balls), The Slow Motion Drill (Beginner, Driver, 10 slow+5 full), The Tee Height Ladder (Beginner, Driver, 15 balls), The Foot Together Drill (Beginner, Driver, 15 balls), The Alignment Stick Path Drill (Intermediate, Driver, 20 balls), The Impact Bag Drill (Intermediate, 6 Iron, 20 strikes), The 3 Ball Progression (Intermediate, Driver, 5 sets), The L to L Drill (Intermediate, 7 Iron→Driver, 20 swings), The Eyes Closed Drill (Intermediate, Driver, 10 swings), The Step Through Drill (Intermediate, Driver, 15 balls), The 9 Shot Shape Drill (Advanced, Driver, 9 balls), The Speed Training Drill (Advanced, 3 Wood→Driver, 9 balls).
 IRON PLAY: The Divot Board Drill (Beginner, 7 Iron, 20 balls), The Pump Drill (Beginner, 7 Iron, 15 swings), The Yardage Marker Drill (Beginner, 7 Iron, 10 balls/iron), The Coin Drill (Beginner, 7 Iron, 20 swings), The Headcover Drill (Beginner, 6 Iron, 20 balls), The Ball Position Ladder (Beginner, 7 Iron, 15 balls), The Towel Under Lead Arm Drill (Intermediate, 7 Iron, 20 swings), The Miss Drill (Intermediate, 7 Iron, 10 balls/stage), The Half Swing Compression Drill (Intermediate, 7 Iron, 20+10), The Knockdown Drill (Intermediate, 6 Iron, 15 balls), The Random Club Drill (Advanced, Any Iron, 15 balls), The One Handed Drill (Advanced, 9 Iron, 30 balls), The Par 3 Simulation Drill (Advanced, 8 Iron, 9 holes).
@@ -82,11 +83,12 @@ function calcRoundTrajectory(rounds) {
   if (rounds.length < 2) return null;
   const last5 = rounds.slice(0, 5);
   const last30days = rounds.filter(r => {
-    const d = new Date(r.round_date);
-    return (Date.now() - d.getTime()) < 30 * 24 * 60 * 60 * 1000;
+    const d = parseDateLocal(r.round_date);
+    return d && (Date.now() - d.getTime()) < 30 * 24 * 60 * 60 * 1000;
   });
   const prev30days = rounds.filter(r => {
-    const d = new Date(r.round_date);
+    const d = parseDateLocal(r.round_date);
+    if (!d) return false;
     const msAgo = Date.now() - d.getTime();
     return msAgo >= 30 * 24 * 60 * 60 * 1000 && msAgo < 60 * 24 * 60 * 60 * 1000;
   });
@@ -208,8 +210,9 @@ function buildSystemPrompt(profile, rounds, sessionLogs, drillRatings, plan, bad
         `${m.role === 'user' ? 'Golfer' : 'Coach'}: ${m.content}`
       ).join('\n');
 
-  const daysSinceStart = profile.trial_start_date
-    ? Math.floor((Date.now() - new Date(profile.trial_start_date).getTime()) / (1000 * 60 * 60 * 24))
+  const trialStart = parseDateLocal(profile.trial_start_date);
+  const daysSinceStart = trialStart
+    ? Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
   return `You are Caddie AI — a direct, sharp, deeply personalized golf coach. You are having a real coaching conversation, not generating a report.

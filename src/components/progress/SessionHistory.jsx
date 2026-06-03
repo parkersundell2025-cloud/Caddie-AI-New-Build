@@ -1,5 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 const SESSION_ICONS = {
   'Range Day': '🏌️',
@@ -33,7 +34,7 @@ export default function SessionHistory({ sessions }) {
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-foreground">{s.session_type}</p>
                   <p className="text-xs text-muted-foreground flex-shrink-0">
-                    {s.session_date ? format(new Date(s.session_date), 'MMM d') : ''}
+                    {s.session_date ? format(parseDateLocal(s.session_date), 'MMM d') : ''}
                   </p>
                 </div>
                 {s.notes && <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.notes}</p>}

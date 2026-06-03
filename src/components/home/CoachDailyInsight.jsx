@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/db';
 import { Loader2 } from 'lucide-react';
+import { parseDateLocal } from '@/lib/dateUtils';
 
 function calcSkillTrends(drillRatings) {
   const skillMap = {
@@ -72,7 +73,7 @@ export default function CoachDailyInsight({ userEmail }) {
       }
       // Inactive message
       else {
-        const lastActivityDate = lastSession?.session_date ? new Date(lastSession.session_date) : null;
+        const lastActivityDate = parseDateLocal(lastSession?.session_date);
         if (lastActivityDate) {
           const daysSince = Math.floor((Date.now() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24));
           if (daysSince >= 3) {

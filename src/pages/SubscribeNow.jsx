@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
+import { useAuth } from '@/lib/AuthContext';
 import Logo from '@/components/layout/Logo';
 import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 import {
@@ -18,6 +19,7 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 export default function SubscribeNow() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(false);
@@ -293,6 +295,17 @@ export default function SubscribeNow() {
               Restore Purchases
             </button>
           </div>
+
+          {/* Sign out — escape hatch for users who need to switch accounts */}
+          <div className="text-center pt-2">
+            <p className="text-white/40 text-xs mb-2">Signed in as {user?.email}</p>
+            <button
+              onClick={() => logout()}
+              className="text-white/50 text-xs underline underline-offset-4 hover:text-white/80 transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -424,6 +437,17 @@ export default function SubscribeNow() {
             {restoring ? 'Checking...' : 'Restore Access'}
           </button>
           {restoreMsg && <p className="text-white/50 text-xs max-w-xs mx-auto">{restoreMsg}</p>}
+        </div>
+
+        {/* Sign out — escape hatch for users who need to switch accounts */}
+        <div className="text-center pt-2">
+          <p className="text-white/40 text-xs mb-2">Signed in as {user?.email}</p>
+          <button
+            onClick={() => logout()}
+            className="text-white/50 text-xs underline underline-offset-4 hover:text-white/80 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
 
       </div>
