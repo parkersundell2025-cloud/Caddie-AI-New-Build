@@ -85,6 +85,20 @@ to TestFlight. Items are grouped by owner.
       ```
 - [ ] **Apple OAuth provider** configured in Supabase Auth → Providers → Apple
       (needs the Service ID + key from Parker)
+- [ ] **Google OAuth provider** configured in Supabase Auth → Providers → Google.
+      Steps:
+      1. console.cloud.google.com → create a new project (or pick an
+         existing one)
+      2. APIs & Services → OAuth consent screen → External user type →
+         fill in app name "Caddie AI", support email, developer contact
+      3. APIs & Services → Credentials → "+ Create Credentials" → OAuth
+         client ID → Application type: **Web application**
+      4. **Authorized redirect URIs:** add
+         `https://dbvsnzppevytanoxzgwj.supabase.co/auth/v1/callback`
+         (replace with the client project ref at cutover)
+      5. Copy the **Client ID** + **Client Secret**
+      6. Supabase Dashboard → Authentication → Providers → Google →
+         enable → paste both values → Save
 - [ ] **Xcode → Signing & Capabilities** — once we have Apple Developer
       Program team access (post-conversion or via manual signing):
       - +Capability → Push Notifications

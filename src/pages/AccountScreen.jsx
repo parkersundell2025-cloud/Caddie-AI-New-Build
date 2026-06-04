@@ -96,12 +96,41 @@ export default function AccountScreen() {
             <p className="text-sm text-foreground">{cancelSuccess}</p>
           </div>
         )}
-        <button
-          onClick={() => { setCancelError(''); setCancelSuccess(''); setShowConfirm(true); }}
-          className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
-        >
-          Cancel Subscription
-        </button>
+        {(() => {
+          // Apple Guideline 5.1.1 — Apple IAP / Google Play / Mac App Store
+          // subscriptions must be cancelled in the platform's own settings,
+          // not via an in-app cancel button. Stripe and unknown sources keep
+          // the in-app cancel flow (which calls cancelSubscription edge fn).
+          const src = profile?.subscription_source;
+          if (src === 'app_store' || src === 'mac_app_store') {
+            return (
+              <a
+                href="itms-apps://apps.apple.com/account/subscriptions"
+                className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                Manage Subscription in iOS Settings
+              </a>
+            );
+          }
+          if (src === 'play_store') {
+            return (
+              <a
+                href="https://play.google.com/store/account/subscriptions"
+                className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                Manage Subscription in Google Play
+              </a>
+            );
+          }
+          return (
+            <button
+              onClick={() => { setCancelError(''); setCancelSuccess(''); setShowConfirm(true); }}
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+            >
+              Cancel Subscription
+            </button>
+          );
+        })()}
         <button
           onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}
           className="text-xs text-destructive hover:text-red-700 transition-colors"

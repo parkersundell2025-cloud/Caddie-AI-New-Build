@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { unwrap, getCurrentUser } from '@/lib/db';
 import { ChevronLeft } from 'lucide-react';
 
 export default function ManageSubscription() {
   const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
   const [cancelSuccess, setCancelSuccess] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      const user = await getCurrentUser();
+      if (!user) return;
+      const profiles = await unwrap(supabase.from('user_profile').select('*').eq('user_email', user.email));
+      setProfile(profiles[0] || null);
+    };
+    load();
+  }, []);
 
   const handleCancelConfirm = async () => {
     setCancelling(true);
@@ -57,16 +69,42 @@ export default function ManageSubscription() {
         )}
       </div>
 
-      {/* Cancel Subscription — in-app for Stripe subs. Phase 3 (RevenueCat)
-          will swap this for an "iOS Settings" link when subscription_source =
-          'app_store' (Apple guideline 5.1.1 requirement for IAP subs). */}
+      {/* Cancel Subscription — branches on subscription_source. Apple IAP
+          and Google Play subs MUST be cancelled in the platform's own
+          settings per Apple Guideline 5.1.1; Stripe / promotional /
+          unknown sources use the in-app cancel flow. */}
       <div className="px-5 py-6 border-t border-border text-center">
-        <button
-          onClick={() => setShowConfirm(true)}
-          className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
-        >
-          Cancel Subscription
-        </button>
+        {(() => {
+          const src = profile?.subscription_source;
+          if (src === 'app_store' || src === 'mac_app_store') {
+            return (
+              <a
+                href="itms-apps://apps.apple.com/account/subscriptions"
+                className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                Manage Subscription in iOS Settings
+              </a>
+            );
+          }
+          if (src === 'play_store') {
+            return (
+              <a
+                href="https://play.google.com/store/account/subscriptions"
+                className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                Manage Subscription in Google Play
+              </a>
+            );
+          }
+          return (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+            >
+              Cancel Subscription
+            </button>
+          );
+        })()}
       </div>
 
       {/* Cancel Confirmation Dialog */}
