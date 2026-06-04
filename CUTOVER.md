@@ -28,9 +28,22 @@ client-owned; the other half are silexdev (us) -owned.
       - Pro monthly @ $29
       - Both in the same subscription group
 - [ ] **RevenueCat dashboard** configured:
-      - App connected to App Store Connect via API key
-      - Offering created with both packages
+      - **Update bundle_id on the "Caddie AI : Golf Coach (App Store)"
+        app from `com.base69e5121277e4e0398b59c054.app` (legacy Base44)
+        to `com.caddieaiapp.app`.** Verified via MCP 2026-06-04 — the
+        existing RC App Store app entry still points at the synthetic
+        Base44 bundle ID and won't validate purchases from our app.
+      - App connected to App Store Connect via API key (the current key
+        may have been issued for the legacy Base44 app — re-issue a
+        fresh ASC API key for the new app and re-upload to RC)
+      - Offering `caddiePro` already exists with both packages
+        (`month1_caddiePro` Pro, `$rc_monthly` → `month1_caddie` Basic);
+        no offering changes needed
       - Webhook URL pointing somewhere temporary (we'll re-point at cutover)
+      - Product → entitlement mappings (`month1_caddie` → basic,
+        `month1_caddiePro` → pro) already match `revenueCatWebhook`'s
+        PRODUCT_TO_PLAN constants — no code changes needed once bundle
+        ID and ASC products land
 - [ ] **Apple Developer → Keys → APNs Authentication Key (.p8)** generated,
       file downloaded, **Key ID + Team ID noted**
 - [ ] **caddieaiapp.com domain** registered and DNS access available

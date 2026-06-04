@@ -104,7 +104,33 @@ to TestFlight. Items are grouped by owner.
       - +Capability → Push Notifications
       - +Capability → Background Modes → Remote notifications
       - +Capability → Sign in with Apple
+      - +Capability → Associated Domains → add `applinks:caddieaiapp.com`
       - Set team to "Parker James Sundell" or successor Organization
+
+### Universal Links activation (~10 min once DNS + entitlement land)
+
+Code-side prep is already done:
+- `public/.well-known/apple-app-site-association` (AASA file)
+- `vercel.json` (Content-Type override so Vercel serves the AASA as
+  `application/json`)
+- `DeepLinkRouter` in `App.jsx` accepts both `caddieai://` and
+  `https://caddieaiapp.com/` URLs
+
+The activation steps once Vercel deploys with `caddieaiapp.com` pointing
+at it AND the Xcode `Associated Domains` entitlement is set:
+
+- [ ] Verify the AASA file is reachable + serves correct Content-Type:
+      ```
+      curl -I https://caddieaiapp.com/.well-known/apple-app-site-association
+      ```
+      Expect `200 OK` + `Content-Type: application/json`
+- [ ] On a real iPhone with the app installed, send a test
+      `https://caddieaiapp.com/gateway?code=abc123` link via Messages or
+      Mail. Long-press → should show "Open in Caddie AI" as the default.
+- [ ] Once verified, switch `SignIn.jsx` magic-link `emailRedirectTo`
+      from `caddieai://gateway` to `https://caddieaiapp.com/gateway` so
+      production magic-link emails use Universal Links (smoother UX,
+      no "Open in Caddie AI?" prompt).
 
 ### External / assets
 

@@ -312,25 +312,43 @@ const AuthenticatedApp = () => {
 };
 
 // On Capacitor, the iOS in-app browser closes when Stripe / Supabase redirects
-// to our caddieai:// custom scheme; iOS hands the URL to the App plugin, which
-// fires appUrlOpen. We dismiss the SafariViewController, complete any pending
-// Supabase auth session exchange (PKCE code or implicit-hash tokens), then
-// navigate the SPA. No-op on web.
+// back to the app — either via our caddieai:// custom scheme OR via Universal
+// Links from https://caddieaiapp.com/. iOS hands the URL to the App plugin,
+// which fires appUrlOpen with the same shape regardless of how it arrived.
+// We dismiss the SafariViewController, complete any pending Supabase auth
+// session exchange (PKCE code or implicit-hash tokens), then navigate the
+// SPA. No-op on web.
+//
+// Universal Links are the preferred production path (no "Open in Caddie AI?"
+// prompt, domain-verified), but they require:
+//   1. apple-app-site-association file served at caddieaiapp.com/.well-known/
+//   2. Associated Domains entitlement on the iOS app
+//   3. DNS pointing at our Vercel deploy
+// Until all three converge, the caddieai:// scheme is the working path.
+// Both work in parallel — this router handles whichever URL arrives.
+const URL_PREFIXES = [
+  `${NATIVE_URL_SCHEME}://`,
+  'https://caddieaiapp.com/',
+];
+
 function DeepLinkRouter() {
   const navigate = useNavigate();
   useEffect(() => {
     if (!isNative()) return;
-    const prefix = `${NATIVE_URL_SCHEME}://`;
     let handle;
     const register = async () => {
       handle = await CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
-        if (!url || !url.startsWith(prefix)) return;
+        if (!url) return;
+        const prefix = URL_PREFIXES.find((p) => url.startsWith(p));
+        if (!prefix) return;
         try { await Browser.close(); } catch { /* may already be closed */ }
 
         // Manual parse instead of new URL() — URL constructor splits custom
         // schemes inconsistently across engines (some put authority in host,
         // some in pathname). caddieai://gateway?code=x#hash →
         //   pathPart='gateway', searchStr='code=x', hashStr='hash'
+        // For Universal Links the same parse works:
+        //   https://caddieaiapp.com/gateway?code=x → pathPart='gateway', ...
         const afterScheme = url.slice(prefix.length).replace(/^\/+/, '');
         const [pathAndQuery, hashStr = ''] = afterScheme.split('#');
         const [pathPart = '', searchStr = ''] = pathAndQuery.split('?');
