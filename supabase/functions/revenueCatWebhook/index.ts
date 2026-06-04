@@ -240,6 +240,15 @@ Deno.serve(async (req: Request) => {
         eventType === 'TRIAL_STARTED' ||
         String(event.period_type || '').toUpperCase() === 'TRIAL';
 
+      // Same store normalization as the update path below — used so iOS
+      // first-purchase profiles get their subscription_source set on day one
+      // and the Cancel UI immediately routes to iOS Settings (Apple 5.1.1).
+      const iosRawStore = String(event.store || '').toLowerCase();
+      const IOS_ALLOWED_STORES = new Set([
+        'app_store', 'play_store', 'mac_app_store', 'stripe', 'promotional', 'amazon',
+      ]);
+      const iosSubscriptionSource = IOS_ALLOWED_STORES.has(iosRawStore) ? iosRawStore : null;
+
       const { data: created, error: insErr } = await db
         .from('user_profile')
         .insert({
@@ -251,6 +260,7 @@ Deno.serve(async (req: Request) => {
           trial_start_date: today,
           trial_end_date: trialEnd,
           revenuecat_app_user_id: appUserId,
+          subscription_source: iosSubscriptionSource,
           onboarding_complete: false,
           tour_completed: false,
         })
@@ -450,6 +460,18 @@ Deno.serve(async (req: Request) => {
 
     // Always cache the RC app_user_id so downstream code can look up RC state.
     updates.revenuecat_app_user_id = appUserId;
+
+    // Also persist the store this subscription came from. Apple Guideline
+    // 5.1.1 requires Cancel UI for Apple IAP subscriptions to link to iOS
+    // Settings instead of an in-app cancel button — the frontend branches
+    // on subscription_source to pick the right Cancel surface.
+    const rawStore = String(event.store || '').toLowerCase();
+    const ALLOWED_STORES = new Set([
+      'app_store', 'play_store', 'mac_app_store', 'stripe', 'promotional', 'amazon',
+    ]);
+    if (ALLOWED_STORES.has(rawStore)) {
+      updates.subscription_source = rawStore;
+    }
 
     const { error: updErr } = await db
       .from('user_profile')

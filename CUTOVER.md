@@ -179,6 +179,24 @@ Dashboard → Authentication → Providers → **Apple**:
 
 (This is separate from the APNs key — Apple OAuth uses a different signing key.)
 
+### Google OAuth provider
+
+Dashboard → Authentication → Providers → **Google**:
+
+- [ ] Enable provider
+- [ ] Paste **Client ID** (from Google Cloud Console → APIs & Services →
+      Credentials → OAuth 2.0 Client ID — **needs to be a NEW one for the
+      client's production project**, since the existing dev one is tied
+      to the dev Supabase project URL)
+- [ ] Paste **Client Secret**
+
+To create the new client:
+
+- Google Cloud Console → APIs & Services → Credentials → "+ Create
+  Credentials" → OAuth client ID → **Web application**
+- Authorized redirect URI: `https://<CLIENT_PROJECT_REF>.supabase.co/auth/v1/callback`
+- Copy the Client ID + Secret into Supabase
+
 ### SMTP (Resend)
 
 Dashboard → Authentication → SMTP Settings → **Enable Custom SMTP**:
