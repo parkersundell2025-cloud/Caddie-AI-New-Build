@@ -148,12 +148,18 @@ SELECT vault.create_secret(
   'Used by the notification → push trigger to call sendPushNotification'
 );
 
--- Verify
-SELECT name, description FROM vault.secrets
+-- Verify both EXIST and have plausible lengths. Critical: check `len`, not
+-- just existence — the placeholder text strings above are 32-64 chars, so
+-- if the paste didn't take, the audit query below will still pass on
+-- existence but the trigger will silently no-op or auth-fail. Expected:
+--   supabase_url     → ~40 chars (full https URL)
+--   service_role_key → ~219 chars (a full JWT, starts with 'eyJ')
+SELECT name, length(decrypted_secret) AS len
+FROM vault.decrypted_secrets
 WHERE name IN ('supabase_url', 'service_role_key');
 ```
 
-Both rows must exist before push notifications will fire.
+Both rows must exist with the expected lengths before push notifications will fire. If `service_role_key` is shorter than ~200 chars, the paste didn't take — re-run with `vault.update_secret(...)` instead of `create_secret`.
 
 ---
 
@@ -178,6 +184,19 @@ Dashboard → Authentication → Providers → **Apple**:
 - [ ] Paste **Private Key** (.p8 contents)
 
 (This is separate from the APNs key — Apple OAuth uses a different signing key.)
+
+**Also update Apple Developer → Service ID → Return URLs.** The Service ID
+created during initial setup pointed at the dev Supabase callback URL.
+At cutover, edit the Service ID and add the client's production Supabase
+callback URL alongside the dev one. **Keep both during the cutover window**
+so dev still works during testing; remove the dev URL after production is
+verified.
+
+- [ ] Apple Developer → Identifiers → Services IDs → Caddie AI Sign In →
+      Configure → Return URLs
+- [ ] Edit value to:
+      `https://dbvsnzppevytanoxzgwj.supabase.co/auth/v1/callback,https://<CLIENT_PROJECT_REF>.supabase.co/auth/v1/callback`
+- [ ] After production is verified, remove the dev URL
 
 ### Google OAuth provider
 
@@ -366,6 +385,25 @@ tables all FK into user_profile.
 - [ ] Apple Developer team ID + bundle ID baked into the JSON
 - [ ] iOS app's `Associated Domains` entitlement set to
       `applinks:caddieaiapp.com`
+
+### Sign in with Apple — web domain verification
+
+Apple requires domain ownership verification for the Sign in with Apple
+Services ID's "Domains and Subdomains" field. If we left this pending
+during initial Services ID setup (because DNS still pointed at Base44),
+it has to be completed here.
+
+- [ ] Apple Developer → Identifiers → Services IDs → Caddie AI Sign In →
+      Edit "Configure" → check "Sign in with Apple" → Configure
+- [ ] In the Web Authentication Configuration dialog, click **Download**
+      next to the Domains and Subdomains field. Apple gives you a file:
+      `apple-developer-domain-association.txt`
+- [ ] Host that file (as-is, no extension change, no transform) at
+      `https://caddieaiapp.com/.well-known/apple-developer-domain-association.txt`
+      via the Vercel deployment
+- [ ] Back in Apple Developer → click **Verify** next to the domain
+- [ ] Once verified, the iOS Sign in with Apple flow is fully wired
+      through Supabase Auth → Apple provider
 
 ---
 
