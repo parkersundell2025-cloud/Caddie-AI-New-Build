@@ -140,11 +140,30 @@ async function sendToToken(
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    // Service-role auth — string compare the Authorization header. We don't
-    // accept arbitrary signed JWTs from the anon key here; this function
-    // can fan out across users and must not be reachable from frontend code.
+    // Service-role auth via JWT role claim. We don't accept arbitrary signed
+    // JWTs from the anon key here; this function can fan out across users
+    // and must not be reachable from frontend code. The Supabase gateway has
+    // already verified the JWT signature (verify_jwt defaults to true), so we
+    // only need to inspect the payload's `role` claim. This is more robust
+    // than string-comparing against an env var (which can drift if the
+    // Supabase auto-injection of SUPABASE_SERVICE_ROLE_KEY changes between
+    // platform versions).
     const authHeader = req.headers.get('Authorization') ?? '';
-    if (!SERVICE_ROLE_KEY || authHeader !== `Bearer ${SERVICE_ROLE_KEY}`) {
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    let role: string | undefined;
+    try {
+      const parts = bearer.split('.');
+      if (parts.length === 3) {
+        // base64url → base64; pad to multiple of 4 before decoding
+        let p = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (p.length % 4) p += '=';
+        const payload = JSON.parse(atob(p));
+        role = payload?.role;
+      }
+    } catch (_) {
+      role = undefined;
+    }
+    if (role !== 'service_role') {
       return json({ error: 'Unauthorized' }, 401);
     }
 

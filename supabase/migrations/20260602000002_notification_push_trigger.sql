@@ -44,7 +44,7 @@ create or replace function public.notify_user_push_on_notification_insert()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, extensions, vault
+set search_path = public, vault, net, extensions
 as $$
 declare
   v_supabase_url      text;
@@ -115,7 +115,7 @@ begin
   -- Fire the sendPushNotification edge function asynchronously. pg_net
   -- queues the request and returns a request_id; we don't await it because
   -- delivery latency shouldn't block the row insert.
-  perform extensions.net.http_post(
+  perform net.http_post(
     url     := v_supabase_url || '/functions/v1/sendPushNotification',
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || v_service_role_key,
