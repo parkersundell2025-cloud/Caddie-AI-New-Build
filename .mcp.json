@@ -7,6 +7,10 @@
     "revenuecat": {
       "type": "http",
       "url": "https://mcp.revenuecat.ai/mcp"
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp"
     }
   }
 }

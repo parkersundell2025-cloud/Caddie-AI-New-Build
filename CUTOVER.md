@@ -2,13 +2,34 @@
 
 Source-of-truth for the migration from this repo's dev Supabase project
 (`dbvsnzppevytanoxzgwj.supabase.co`) and the existing Base44 production
-deployment onto the client's empty Supabase project.
+deployment onto the client's Supabase organization.
 
-The schema and edge function source code carry over automatically via
-`supabase db push` / `supabase functions deploy`. **Everything else on this
-page does not.** Per-environment secrets, dashboard config, storage buckets,
-DNS, third-party webhooks — all of those have to be redone against the new
-project. Execute this top-to-bottom on cutover day; do not stop partway.
+## Cutover approach: TRANSFER the existing dev project (decided 2026-06-04)
+
+Rather than creating an empty client project and migrating schema +
+secrets + dashboard config to it, the plan is to **transfer ownership of
+the existing dev project** (`dbvsnzppevytanoxzgwj`) from silexdev's
+Supabase org to the client's Supabase org. This skips ~80% of the items
+that would otherwise be on this page — every vault secret, edge function
+secret, RLS policy, migration, auth provider config, URL configuration,
+and webhook subscription stays exactly where it is. Project ref, anon
+key, and service role key do not change.
+
+What still has to happen at cutover regardless of approach:
+- Base44 → Supabase user data migration
+- Stripe TEST → LIVE mode (single secret swap + webhook re-pointing)
+- DNS cutover from Base44 to Vercel for `caddieaiapp.com`
+- Optional: wipe test data from public tables for a clean launch
+
+After transfer, silexdev should spin up a fresh free-tier dev Supabase
+project for ongoing development so changes aren't tested directly
+against production.
+
+Sections below preserve the original migrate-to-empty-project plan as a
+fallback in case the transfer approach hits a snag (e.g., billing
+issues, client doesn't want to take over the project ref). Most items
+become no-ops under the transfer path; **read each item with that lens
+before doing it.**
 
 ---
 
