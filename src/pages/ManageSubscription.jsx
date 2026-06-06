@@ -4,13 +4,28 @@ import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { ChevronLeft } from 'lucide-react';
 
+// Single consolidated page for subscription management + account deletion.
+// Was previously split across /account (AccountScreen.jsx) and
+// /manage-subscription (ManageSubscription.jsx); /account is removed.
+//
+// Cancel Subscription branches on user_profile.subscription_source so the
+// surface matches the store the sub came from — Apple Guideline 5.1.1
+// requires Apple IAP subs to be cancelled in iOS Settings, not via an in-app
+// button. Stripe / promotional / unknown sources keep the in-app cancel flow.
 export default function ManageSubscription() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(false);
+
+  // Cancel subscription state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
   const [cancelSuccess, setCancelSuccess] = useState('');
+
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -36,44 +51,50 @@ export default function ManageSubscription() {
       return;
     }
     setCancelSuccess(data?.message || 'Your subscription has been cancelled.');
-    setShowConfirm(false);
+    setShowCancelConfirm(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    // Same { data, error } footgun — a 404 from deleteAccount fell through
+    // to signOut() in earlier versions, leaving users locked out of accounts
+    // that still existed server-side. Check error explicitly before signing out.
+    const { error: invErr } = await supabase.functions.invoke('deleteAccount', { body: {} });
+    if (invErr) {
+      setDeleteError('Something went wrong deleting your account. Please try again.');
+      setDeleting(false);
+      return;
+    }
+    await supabase.auth.signOut();
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Header */}
       <div className="sticky top-0 bg-background border-b border-border z-40">
         <div className="px-5 py-4 flex items-center gap-3">
           <button onClick={() => navigate('/settings')} className="p-2">
             <ChevronLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-xl font-black text-foreground">Subscription</h1>
+          <h1 className="text-xl font-black text-foreground">Manage Subscription</h1>
         </div>
       </div>
 
-      <div className="px-5 py-6 flex-1 space-y-6">
-        <div className="card-base p-5 space-y-2">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Your subscription is managed through your account. Sign out and sign back in to refresh your subscription status.
-          </p>
-        </div>
-
+      {/* Cancel success + error messages */}
+      <div className="px-5 py-6 space-y-4">
         {cancelSuccess && (
           <div className="rounded-2xl p-4 bg-sage/10 border border-sage/30 text-center">
             <p className="text-sm text-foreground">{cancelSuccess}</p>
           </div>
         )}
-
-        {cancelError && (
+        {cancelError && !showCancelConfirm && (
           <p className="text-xs text-destructive text-center">{cancelError}</p>
         )}
       </div>
 
-      {/* Cancel Subscription — branches on subscription_source. Apple IAP
-          and Google Play subs MUST be cancelled in the platform's own
-          settings per Apple Guideline 5.1.1; Stripe / promotional /
-          unknown sources use the in-app cancel flow. */}
-      <div className="px-5 py-6 border-t border-border text-center">
+      {/* Actions — pushed toward bottom of viewport */}
+      <div className="flex-1 flex flex-col items-center justify-end pb-10 pt-8 gap-4">
         {(() => {
           const src = profile?.subscription_source;
           if (src === 'app_store' || src === 'mac_app_store') {
@@ -98,17 +119,23 @@ export default function ManageSubscription() {
           }
           return (
             <button
-              onClick={() => setShowConfirm(true)}
+              onClick={() => { setCancelError(''); setCancelSuccess(''); setShowCancelConfirm(true); }}
               className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
             >
               Cancel Subscription
             </button>
           );
         })()}
+        <button
+          onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}
+          className="text-xs text-destructive hover:text-red-700 transition-colors"
+        >
+          Delete Account
+        </button>
       </div>
 
-      {/* Cancel Confirmation Dialog */}
-      {showConfirm && (
+      {/* Cancel Subscription Dialog */}
+      {showCancelConfirm && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-5">
           <div className="bg-background rounded-3xl p-6 w-full max-w-sm space-y-5">
             <div className="space-y-2 text-center">
@@ -121,7 +148,7 @@ export default function ManageSubscription() {
               <p className="text-xs text-destructive text-center">{cancelError}</p>
             )}
             <button
-              onClick={() => setShowConfirm(false)}
+              onClick={() => setShowCancelConfirm(false)}
               className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all"
               style={{ backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))' }}
             >
@@ -134,6 +161,37 @@ export default function ManageSubscription() {
                 className="text-xs text-destructive hover:text-red-700 transition-colors disabled:opacity-50"
               >
                 {cancelling ? 'Cancelling...' : 'Cancel Subscription'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-5">
+          <div className="bg-background rounded-3xl p-6 w-full max-w-sm space-y-5">
+            <div className="space-y-2 text-center">
+              <h2 className="text-xl font-black text-foreground">Delete Account</h2>
+              <p className="text-sm text-muted-foreground">Are you sure? This will permanently delete all your data including all rounds, sessions, progress and coaching history. Your subscription will be cancelled immediately and this cannot be undone.</p>
+            </div>
+            {deleteError && (
+              <p className="text-xs text-destructive text-center">{deleteError}</p>
+            )}
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+              style={{ backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))' }}
+            >
+              Keep Account
+            </button>
+            <div className="text-center">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="text-xs text-destructive hover:text-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete My Account'}
               </button>
             </div>
           </div>
