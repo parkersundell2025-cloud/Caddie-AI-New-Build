@@ -118,19 +118,23 @@ Anonymous visitors are bounced to `/signin` (with `?email=` preserved). Authenti
 
 > **Webhook → profile pipeline NOT yet ported.** A real purchase will redirect to `/checkout/success` but will not create or update the `user_profile` row on the server side. See [Pending work](#pending-work).
 
-### 9. Cancel subscription (`src/pages/ManageSubscription.jsx` + `src/pages/CancelSubscription.jsx` + `src/pages/AccountScreen.jsx`)
+### 9. Cancel subscription (`src/pages/ManageSubscription.jsx` + `src/pages/CancelSubscription.jsx`)
 
-Three call sites for the Cancel flow, all required by Guideline 5.1.1:
+Two call sites for the Cancel flow, both required by Guideline 5.1.1:
 
-- The footer Cancel-Subscription link on **`/manage-subscription`** (Apple guideline pattern: a deemphasized link, not a primary button)
-- The dedicated **`/cancel-subscription`** page
-- The Cancel Subscription button in **`/account`**
+- The footer Cancel-Subscription link on **`/manage-subscription`** (Apple guideline pattern: a deemphasized link, not a primary button) — opens a confirm dialog inline on the same page
+- The dedicated **`/cancel-subscription`** page (legacy direct-link target; kept for back-compat with any out-of-app links)
 
-All three invoke the `cancelSubscription` edge function and (since 2026-05-29) handle the not-yet-deployed-function 404 gracefully with a "We couldn't cancel right now. Please email support@caddieaiapp.com…" message.
+Both invoke the `cancelSubscription` edge function and (since 2026-05-29) handle the not-yet-deployed-function 404 gracefully with a "We couldn't cancel right now. Please email support@caddieaiapp.com…" message.
 
-On iOS, the `/manage-subscription` footer link points to `itms-apps://apps.apple.com/account/subscriptions` so iOS users land in the iOS Settings subscription manager (required by 5.1.1).
+The Cancel button on `/manage-subscription` branches on `user_profile.subscription_source`:
+- `app_store` / `mac_app_store` → link to `itms-apps://apps.apple.com/account/subscriptions` (Apple 5.1.1 — IAP subs must be cancelled in iOS Settings)
+- `play_store` → link to Google Play subscriptions
+- `stripe` / `promotional` / unknown → in-app cancel button + confirm dialog
 
-### 10. Delete account (`src/pages/AccountScreen.jsx`)
+(The previous `/account` page that duplicated this flow was removed on 2026-06-06 — its responsibilities are now consolidated into `/manage-subscription`.)
+
+### 10. Delete account (`src/pages/ManageSubscription.jsx`)
 
 Invokes the `deleteAccount` edge function. Originally meant to cancel the Stripe sub, wipe user data across the 17 owned tables, and delete the auth user. **Not yet wired up to a deployed function.** As of 2026-05-29 the call checks `error` before signing out, so a 404 produces a retry message rather than silently signing the user out of an account that still exists.
 
@@ -195,9 +199,8 @@ src/
 │   ├── SignIn.jsx                     # magic link + Apple OAuth (Apple disabled)
 │   ├── Gateway.jsx                    # post-auth funnel
 │   ├── SubscribeNow.jsx               # plan picker → buy.stripe.com
-│   ├── ManageSubscription.jsx         # iOS-aware cancel link (5.1.1)
-│   ├── CancelSubscription.jsx         # standalone cancel page
-│   ├── AccountScreen.jsx              # cancel + delete account buttons
+│   ├── ManageSubscription.jsx         # source-aware cancel link (5.1.1) + delete account
+│   ├── CancelSubscription.jsx         # standalone cancel page (legacy direct-link target)
 │   └── …
 ├── components/
 │   ├── SubscriptionGate.jsx           # hasActiveSubscription gate

@@ -61,7 +61,7 @@ export default function Settings() {
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
           <button
-            onClick={() => navigate('/account')}
+            onClick={() => navigate('/manage-subscription')}
             className="w-full flex items-center justify-between py-4 px-3 text-foreground border-b border-border hover:bg-muted/30 transition-all active:scale-95 min-h-[44px]"
           >
             <span className="font-medium text-sm">Manage Subscription</span>

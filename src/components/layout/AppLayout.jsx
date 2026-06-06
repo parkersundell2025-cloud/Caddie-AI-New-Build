@@ -12,12 +12,11 @@ const ROOT_PATHS = ['/', '/plan', '/progress', '/coach', '/leaderboard', '/profi
 const SUB_SCREENS = {
   '/settings':             { title: 'Settings',             backTo: '/home' },
   '/edit-profile':         { title: 'Edit Profile',         backTo: '/settings' },
-  '/account':              { title: 'Manage Subscription',  backTo: '/settings' },
   '/referral':             { title: 'Refer a Friend',       backTo: '/settings' },
   '/notifications':        { title: 'Notification Preferences', backTo: '/settings' },
   '/leaderboard-info':     { title: 'How It Works',         backTo: '/settings' },
   '/manage-subscription':  { title: 'Manage Subscription',  backTo: '/settings' },
-  '/cancel-subscription':  { title: 'Cancel Subscription',  backTo: '/account' },
+  '/cancel-subscription':  { title: 'Cancel Subscription',  backTo: '/manage-subscription' },
 
 };
 

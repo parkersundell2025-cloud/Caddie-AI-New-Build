@@ -38,7 +38,6 @@ import ManageSubscription from './pages/ManageSubscription';
 import CancelSubscription from './pages/CancelSubscription';
 import Logo from './components/layout/Logo';
 import NotificationPreferences from './pages/NotificationPreferences';
-import AccountScreen from './pages/AccountScreen';
 import EditProfile from './pages/EditProfile';
 import Referral from './pages/Referral';
 
@@ -270,7 +269,6 @@ const AuthenticatedApp = () => {
 
             {/* Protected app routes */}
             <Route path="/notifications" element={<ProtectedRoute><NotificationPreferences /></ProtectedRoute>} />
-            <Route path="/account" element={<ProtectedRoute><AccountScreen /></ProtectedRoute>} />
             <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
             <Route path="/referral" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
             <Route path="/send-feedback" element={<ProtectedRoute><SendFeedback /></ProtectedRoute>} />
