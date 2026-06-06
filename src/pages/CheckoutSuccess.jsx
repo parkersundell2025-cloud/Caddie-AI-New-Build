@@ -45,6 +45,27 @@ export default function CheckoutSuccess() {
         return;
       }
 
+      // Kick off the Stripe ID hydration in parallel with the polling loop.
+      // The RC webhook updates subscription_status/trial_end_date, but does
+      // not write stripe_customer_id / stripe_subscription_id /
+      // subscription_source — completeStripeCheckout retrieves those from
+      // the Checkout Session and writes them. Fire-and-forget: a failure
+      // here doesn't block activation since the RC webhook still updates
+      // the access-gating fields independently.
+      const sessionIdToHydrate = searchParams.get('session_id');
+      if (sessionIdToHydrate) {
+        supabase.functions
+          .invoke('completeStripeCheckout', { body: { session_id: sessionIdToHydrate } })
+          .then(({ data, error }) => {
+            if (error) {
+              console.warn('[CheckoutSuccess] completeStripeCheckout error:', error.message);
+            } else if (data?.success) {
+              console.log('[CheckoutSuccess] Stripe IDs hydrated:', data.updated);
+            }
+          })
+          .catch((e) => console.warn('[CheckoutSuccess] completeStripeCheckout threw:', e?.message));
+      }
+
       const start = Date.now();
       const poll = async () => {
         if (cancelled) return;
