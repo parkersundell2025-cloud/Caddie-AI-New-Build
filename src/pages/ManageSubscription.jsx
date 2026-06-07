@@ -2,7 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
+import { parseDateLocal } from '@/lib/dateUtils';
 import { ChevronLeft } from 'lucide-react';
+
+// 'YYYY-MM-DD' → 'June 13, 2026'. Uses parseDateLocal so a Postgres date
+// column ('2026-06-13') doesn't shift a day west of UTC.
+function formatDate(dateStr) {
+  const d = parseDateLocal(dateStr);
+  if (!d) return '';
+  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 // Single consolidated page for subscription management + account deletion.
 // Was previously split across /account (AccountScreen.jsx) and
@@ -81,8 +90,53 @@ export default function ManageSubscription() {
         </div>
       </div>
 
-      {/* Cancel success + error messages */}
+      {/* Subscription status card + messages */}
       <div className="px-5 py-6 space-y-4">
+        {profile && (() => {
+          const status = profile.subscription_status;
+          const plan = profile.subscription_plan;
+          const src = profile.subscription_source;
+          const trialEnd = profile.trial_end_date;
+
+          const planLabel = plan === 'pro' ? 'Pro' : plan === 'basic' ? 'Basic' : 'Caddie AI';
+
+          let headline;
+          let subline;
+          if (status === 'trial') {
+            headline = `You're on the ${planLabel} free trial`;
+            subline = trialEnd ? `Trial ends ${formatDate(trialEnd)}.` : 'Enjoy your trial.';
+          } else if (status === 'cancelling') {
+            headline = 'Subscription cancelled';
+            subline = trialEnd
+              ? `You'll keep access until ${formatDate(trialEnd)}.`
+              : "You'll keep access until the end of the current period.";
+          } else if (status === 'expired') {
+            headline = 'No active subscription';
+            subline = 'Resubscribe any time from the home screen.';
+          } else if (status === 'basic' || status === 'pro') {
+            headline = `You're on the ${planLabel} plan`;
+            subline = 'Renews automatically each month.';
+          } else {
+            return null;
+          }
+
+          let sourceLabel = null;
+          if (src === 'app_store' || src === 'mac_app_store') sourceLabel = 'Managed through the App Store';
+          else if (src === 'play_store') sourceLabel = 'Managed through Google Play';
+          else if (src === 'stripe') sourceLabel = 'Managed through Stripe';
+          else if (src === 'promotional') sourceLabel = 'Promotional access';
+
+          return (
+            <div className="card-base p-5 space-y-2 text-center">
+              <p className="text-base font-bold text-foreground">{headline}</p>
+              <p className="text-sm text-muted-foreground">{subline}</p>
+              {sourceLabel && (
+                <p className="text-xs text-muted-foreground/70 pt-1">{sourceLabel}</p>
+              )}
+            </div>
+          );
+        })()}
+
         {cancelSuccess && (
           <div className="rounded-2xl p-4 bg-sage/10 border border-sage/30 text-center">
             <p className="text-sm text-foreground">{cancelSuccess}</p>
@@ -93,10 +147,17 @@ export default function ManageSubscription() {
         )}
       </div>
 
-      {/* Actions — pushed toward bottom of viewport */}
-      <div className="flex-1 flex flex-col items-center justify-end pb-10 pt-8 gap-4">
+      {/* Actions — inline below the status card. Cancel hidden when the
+          subscription is already in a non-active terminal state
+          ('cancelling' = already requested; 'expired' = nothing to cancel)
+          so users don't see a meaningless button that would just hit the
+          API for no reason. */}
+      <div className="px-5 pb-10 flex flex-col items-center gap-4">
         {(() => {
+          const status = profile?.subscription_status;
           const src = profile?.subscription_source;
+          const isActiveSub = status === 'trial' || status === 'basic' || status === 'pro';
+          if (!isActiveSub) return null;
           if (src === 'app_store' || src === 'mac_app_store') {
             return (
               <a
