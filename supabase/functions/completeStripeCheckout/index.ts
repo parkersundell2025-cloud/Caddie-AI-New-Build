@@ -59,13 +59,14 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'session_id must start with cs_' }, 400);
     }
 
-    // Pull the session with the subscription + customer relations expanded
-    // in one round-trip. Without the expand, we'd only get IDs and have to
-    // hop again to resolve them.
+    // Pull the session with the subscription (+ its line items) + customer
+    // relations expanded in one round-trip. Without the expand, we'd only
+    // get IDs and have to hop again to resolve them. We also need the line
+    // item price to derive basic vs. pro for the profile-create path below.
     let session: Stripe.Checkout.Session;
     try {
       session = await stripe().checkout.sessions.retrieve(sessionId, {
-        expand: ['subscription', 'customer'],
+        expand: ['subscription', 'subscription.items.data.price', 'customer'],
       });
     } catch (e) {
       const msg = (e as Error)?.message || 'Stripe lookup failed';
@@ -126,19 +127,91 @@ Deno.serve(async (req: Request) => {
     if (!userEmail) return json({ error: 'Authenticated user has no email' }, 400);
 
     const db = serviceClient();
-    const { error: updErr } = await db
+
+    // Does a profile already exist? Web sign-ups via OAuth (Apple/Google) ->
+    // Stripe checkout hit this function with NO existing profile, because
+    // revenueCatWebhook only creates profiles for iOS-app events and there
+    // is no other automatic profile-creation path on web. Without an upsert
+    // here, the silent no-op UPDATE leaves the user trapped on
+    // /subscribe-now forever (Gateway sees no profile -> /subscribe-now;
+    // CheckoutSuccess polls and times out).
+    const { data: existing, error: lookupErr } = await db
       .from('user_profile')
-      .update(updates)
+      .select('id')
       .eq('user_email', userEmail);
-    if (updErr) {
-      console.error('[completeStripeCheckout] update failed:', updErr.message);
-      return json({ error: 'Profile update failed', detail: updErr.message }, 500);
+    if (lookupErr) {
+      console.error('[completeStripeCheckout] profile lookup failed:', lookupErr.message);
+      return json({ error: 'Profile lookup failed', detail: lookupErr.message }, 500);
     }
 
-    console.log(
-      `[completeStripeCheckout] Updated user_profile for ${userEmail} with ${JSON.stringify(updates)}`,
-    );
-    return json({ success: true, updated: updates });
+    if (existing && existing.length > 0) {
+      // Existing profile path — just patch the Stripe identity fields.
+      const { error: updErr } = await db
+        .from('user_profile')
+        .update(updates)
+        .eq('user_email', userEmail);
+      if (updErr) {
+        console.error('[completeStripeCheckout] update failed:', updErr.message);
+        return json({ error: 'Profile update failed', detail: updErr.message }, 500);
+      }
+      console.log(`[completeStripeCheckout] Updated user_profile for ${userEmail} with ${JSON.stringify(updates)}`);
+      return json({ success: true, created: false, updated: updates });
+    }
+
+    // No profile — create one with everything we know from Stripe.
+    //
+    // Derive plan from the subscription's line item price ID. The two
+    // known live prices (basic $14.99, pro $28.99) are pinned below; the
+    // env-var price IDs createStripeCheckoutSession uses must match
+    // whichever Stripe mode is active. Fallback when unknown: 'basic'
+    // (least surprising — never accidentally grants pro).
+    const STRIPE_PRICE_BASIC = 'price_1TOfvE2ZJRGxxJxRqXKmOVuf';
+    const STRIPE_PRICE_PRO   = 'price_1TOfwL2ZJRGxxJxRc7SiSjSm';
+    const subObj = typeof session.subscription === 'object' ? session.subscription : null;
+    const lineItemPriceId =
+      subObj?.items?.data?.[0]?.price?.id ?? (session.metadata?.plan === 'pro' ? STRIPE_PRICE_PRO : STRIPE_PRICE_BASIC);
+    const plan: 'basic' | 'pro' = lineItemPriceId === STRIPE_PRICE_PRO ? 'pro' : 'basic';
+
+    // Trial detection: Stripe surfaces trial_end as a unix timestamp on the
+    // subscription. If trial_end is in the future, status = 'trial';
+    // otherwise the user is already on the paid plan (no trial offered).
+    const nowMs = Date.now();
+    const trialEndMs = subObj?.trial_end ? subObj.trial_end * 1000 : null;
+    const isInTrial = trialEndMs !== null && trialEndMs > nowMs;
+    const trialEndISO = trialEndMs ? new Date(trialEndMs).toISOString().split('T')[0] : null;
+    const todayISO = new Date().toISOString().split('T')[0];
+
+    // first_name: prefer the auth user_metadata.name if present (Google +
+    // Apple-with-name share this), then session.customer_details.name,
+    // then the local part of the email as a last-resort.
+    const authName =
+      (user.user_metadata?.name as string | undefined) ||
+      (user.user_metadata?.full_name as string | undefined);
+    const customerDetailsName = session.customer_details?.name;
+    const fallbackName = userEmail.split('@')[0];
+    const rawName = authName || customerDetailsName || fallbackName;
+    const firstName = rawName.split(' ')[0];
+
+    const insertPayload = {
+      user_email: userEmail,
+      first_name: firstName,
+      subscription_status: isInTrial ? 'trial' : plan,
+      subscription_plan: plan,
+      trial_start_date: todayISO,
+      trial_end_date: trialEndISO,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId,
+      subscription_source: 'stripe',
+      onboarding_complete: false,
+      tour_completed: false,
+    };
+    const { error: insErr } = await db.from('user_profile').insert(insertPayload);
+    if (insErr) {
+      console.error('[completeStripeCheckout] profile create failed:', insErr.message);
+      return json({ error: 'Profile create failed', detail: insErr.message }, 500);
+    }
+    console.log(`[completeStripeCheckout] Created user_profile for ${userEmail} with ${JSON.stringify(insertPayload)}`);
+    return json({ success: true, created: true, profile: insertPayload });
   } catch (e) {
     const err = e as Error;
     console.error('[completeStripeCheckout] error:', err?.message || err);

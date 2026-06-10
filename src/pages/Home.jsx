@@ -19,7 +19,7 @@ import ThisWeekStrip from '@/components/home/ThisWeekStrip';
 import QuickStatsRow from '@/components/home/QuickStatsRow';
 import LeaderboardWidget from '@/components/home/LeaderboardWidget';
 import WeeklyGoalRings from '@/components/home/WeeklyGoalRings';
-import { SESSION_TYPE_COLORS } from '@/lib/sessionTypeColors';
+import { getSessionTypeColor } from '@/lib/sessionTypeColors';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -234,9 +234,19 @@ export default function Home() {
           </Link>
         </div>
       ) : todaySession && todaySession.session_type !== 'Rest & Recovery' ? (
+        (() => {
+          // Use the safe-fallback lookup helper rather than direct
+          // SESSION_TYPE_COLORS[] access — when the plan was authored by the
+          // LLM with a session_type variant that isn't one of the four known
+          // keys (typo, new category, missing value), direct lookup returns
+          // undefined and `.hex` crashes the whole tree, leaving the user on
+          // a blank screen with a console error. getSessionTypeColor falls
+          // back to the 'Rest & Recovery' palette which is at least visible.
+          const sessionColors = getSessionTypeColor(todaySession.session_type);
+          return (
         <div className="rounded-3xl p-6 space-y-5 cursor-pointer active:scale-[0.99] transition-all" style={{ backgroundColor: '#1a2e1a' }} onClick={() => navigate('/plan')}>
           <div className="space-y-2">
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full inline-block" style={{ backgroundColor: SESSION_TYPE_COLORS[todaySession.session_type].hex, color: 'white' }}>
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full inline-block" style={{ backgroundColor: sessionColors.hex, color: 'white' }}>
               {todaySession.session_type}
             </span>
             <p className="text-white/50 text-xs tracking-wide">{todaySession.duration || 45} MIN</p>
@@ -247,7 +257,7 @@ export default function Home() {
           <div className="space-y-2.5">
             {(todaySession.drills || []).slice(0, 3).map((drill, i) => {
               const club = drill.club || getDrillClub(drill.name);
-              const dotColor = SESSION_TYPE_COLORS[todaySession.session_type].dot;
+              const dotColor = sessionColors.dot;
               return (
                 <div key={i} className="flex items-start gap-3">
                   <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: dotColor }} />
@@ -275,11 +285,13 @@ export default function Home() {
                 ? 'bg-white/15 text-white/50 cursor-default'
                 : 'active:scale-95'
             }`}
-            style={!completedToday ? { backgroundColor: SESSION_TYPE_COLORS[todaySession.session_type].hex, color: 'white' } : {}}
+            style={!completedToday ? { backgroundColor: sessionColors.hex, color: 'white' } : {}}
           >
             {completedToday ? '✓ Session Complete' : 'Start Session →'}
           </button>
         </div>
+          );
+        })()
       ) : (
         <div className="rounded-3xl p-6" style={{ backgroundColor: '#1a2e1a' }}>
           <h3 className="text-white text-xl font-black" style={{ letterSpacing: '-0.5px' }}>Rest Day 🌿</h3>
