@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Export options for xcodebuild -exportArchive when distributing the Caddie
+  AI iOS app to App Store Connect / TestFlight.
+
+  Used to bypass Xcode's UI distribution flow, which fails because Parker is
+  on an Individual Apple Developer enrollment and silexdev's Apple ID is
+  not (and cannot be) on the team. The signing identity (Parker's
+  Distribution .p12) is installed locally in silexdev's Keychain, and the
+  provisioning profile is installed under ~/Library/MobileDevice/.
+  xcodebuild + altool use these directly without requiring an Apple ID
+  account in Xcode.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store-connect</string>
+
+    <key>teamID</key>
+    <string>AHYLLM9RY8</string>
+
+    <key>signingStyle</key>
+    <string>manual</string>
+
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
+
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.caddieaiapp.app</key>
+        <string>Caddie AI App Store</string>
+    </dict>
+
+    <!--
+      Default upload-symbols=true gives Apple our dSYM so crash reports are
+      symbolicated. uploadBitcode is a no-op since Apple removed Bitcode in
+      Xcode 14, but setting it explicitly suppresses a warning.
+    -->
+    <key>uploadSymbols</key>
+    <true/>
+
+    <key>uploadBitcode</key>
+    <false/>
+
+    <key>destination</key>
+    <string>export</string>
+</dict>
+</plist>

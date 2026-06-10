@@ -28,6 +28,16 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<!--
+		  remote-notification lets the app wake briefly when a silent
+		  push (content-available: 1) arrives, e.g., for syncing state
+		  before the user opens the app. Banner-style alerts don't
+		  require this — just background processing of pushes does.
+		-->
+		<string>remote-notification</string>
+	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

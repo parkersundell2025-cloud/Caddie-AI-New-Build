@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      aps-environment selects which APNs endpoint the OS registers against.
+      'production' = api.push.apple.com (Apple Distribution cert / TestFlight /
+      App Store builds). 'development' = api.sandbox.push.apple.com (Apple
+      Development cert / Xcode-run-on-device builds). Both TestFlight and
+      App Store use the Distribution cert, so 'production' is correct for
+      every build that ships off this machine — only the entitlement flag
+      changes the active endpoint, not the Supabase APNS_USE_SANDBOX flag.
+    -->
+    <key>aps-environment</key>
+    <string>production</string>
+
+    <!--
+      Sign in with Apple is enabled by the provisioning profile via the
+      App ID, but we re-declare it in the local entitlements so Xcode sees
+      it during builds and the capability shows up in Signing & Capabilities
+      consistently.
+    -->
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
+
+    <!--
+      Associated Domains for Universal Links. Apple verifies the
+      apple-app-site-association file at https://caddieaiapp.com/.well-known/
+      when the app is installed; if it matches, the OS opens this app for
+      matching URLs instead of Safari. Only active once DNS is cut over.
+      'applinks:' prefix is for Universal Links specifically (vs webcredentials,
+      etc.).
+    -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>applinks:caddieaiapp.com</string>
+    </array>
+</dict>
+</plist>

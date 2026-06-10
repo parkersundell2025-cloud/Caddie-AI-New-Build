@@ -46,4 +46,30 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+    // APNs registration callbacks — required by @capacitor/push-notifications.
+    //
+    // Without these, iOS receives the device token from APNs but has no way to
+    // notify the Capacitor plugin, so the JS-side `registration` event never
+    // fires and `PushNotifications.register()` hangs until our 10-second
+    // client-side timeout — that's the registration_timeout error we were
+    // seeing on TestFlight build #29 even though the aps-environment
+    // entitlement was correctly embedded and iOS permission was granted.
+    //
+    // The plugin listens on these two NotificationCenter names and rewrites
+    // them into Capacitor's `pushNotificationRegistration` /
+    // `pushNotificationRegistrationError` events. See:
+    // https://capacitorjs.com/docs/apis/push-notifications#ios
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications,
+                                        object: deviceToken)
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications,
+                                        object: error)
+    }
+
 }
