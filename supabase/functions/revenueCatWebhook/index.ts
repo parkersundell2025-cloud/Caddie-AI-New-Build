@@ -47,7 +47,15 @@ void STRIPE_APP_ID;
 // Strict explicit map first — DO NOT add substring fallbacks for known IDs.
 // Add new products here as they get added in RC.
 const PLAN_FROM_PRODUCT: Record<string, 'basic' | 'pro'> = {
-  // App Store
+  // App Store — current IDs (com.caddieaiapp.app, created 2026-06-07).
+  // The original Base44-era IDs (month1_caddie / month1_caddiePro) were
+  // claimed by a rejected app; Apple permanently reserves Product IDs
+  // even after deletion, so we couldn't reuse them on the new bundle.
+  'com.caddieaiapp.basic.monthly': 'basic',
+  'com.caddieaiapp.pro.monthly':   'pro',
+  // App Store — Base44-era IDs kept for back-compat with any in-flight
+  // RC events from before the swap. Safe to keep — they will simply never
+  // appear again once the old app's RC entry is gone.
   'month1_caddie':       'basic',
   'month1_caddiePro':    'pro',
   // Stripe (RC-imported product IDs)

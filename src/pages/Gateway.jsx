@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/db';
+import { isNative } from '@/lib/platform';
 import Logo from '@/components/layout/Logo';
 
 const hasAccess = (profile) => {
@@ -70,9 +71,22 @@ export default function Gateway() {
 
         const email = session.user.email;
 
-        // Retry up to 5 times if no profile found (webhook may not have fired yet)
+        // Profile lookup retry policy is platform-aware:
+        //   - Native (iOS): keep a small retry budget so an in-flight RC
+        //     INITIAL_PURCHASE webhook (which CREATES the profile for first-
+        //     time iOS subscribers) has time to land between sign-in and
+        //     this lookup.
+        //   - Web: skip retries — for OAuth sign-ins (Apple/Google) and
+        //     email magic-link, no webhook creates a profile during sign-in.
+        //     completeStripeCheckout creates the profile after Stripe
+        //     Checkout, but that flow runs on /checkout/success, not here.
+        //     Polling here for web wasted up to 8s of blank time before
+        //     bailing to /subscribe-now, which felt broken to users.
+        const POLL_ATTEMPTS = isNative() ? 3 : 1;
+        const POLL_INTERVAL_MS = isNative() ? 1000 : 0;
+
         let profile = null;
-        for (let attempt = 0; attempt < 5; attempt++) {
+        for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
           const profiles = await unwrap(
             supabase.from('user_profile').select('*').eq('user_email', email)
           );
@@ -80,8 +94,8 @@ export default function Gateway() {
             profile = profiles[0];
             break;
           }
-          if (attempt < 4) {
-            await new Promise((res) => setTimeout(res, 2000));
+          if (attempt < POLL_ATTEMPTS - 1 && POLL_INTERVAL_MS > 0) {
+            await new Promise((res) => setTimeout(res, POLL_INTERVAL_MS));
           }
         }
 

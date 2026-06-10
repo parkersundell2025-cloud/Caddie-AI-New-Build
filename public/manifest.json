@@ -10,8 +10,8 @@
   "theme_color": "#a8d5a2",
   "categories": ["sports", "health", "lifestyle"],
   "icons": [
-    { "src": "https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/icon-192.png?raw=true", "sizes": "192x192", "type": "image/png" },
-    { "src": "https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/icon-512.png?raw=true", "sizes": "512x512", "type": "image/png" },
-    { "src": "https://github.com/parkersundell2025-cloud/caddie-ai-golf-coach/blob/main/public/icon-maskable-512.png?raw=true", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

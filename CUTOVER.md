@@ -54,9 +54,18 @@ client-owned; the other half are silexdev (us) -owned.
         to `com.caddieaiapp.app`.** Verified via MCP 2026-06-04 — the
         existing RC App Store app entry still points at the synthetic
         Base44 bundle ID and won't validate purchases from our app.
-      - App connected to App Store Connect via API key (the current key
-        may have been issued for the legacy Base44 app — re-issue a
-        fresh ASC API key for the new app and re-upload to RC)
+      - App connected to App Store Connect via API key.
+        **Note on the key currently in use (set up 2026-06-08):** the ASC
+        API key was generated as an **Individual API Key** under
+        silexdev's ASC user account (the Integrations / Team Keys path
+        was blocked by an Apple agreement-acceptance bug that hadn't
+        propagated for Parker's account at the time). Individual keys are
+        tied to the user who created them. If silexdev's user is removed
+        from Parker's ASC team at any point, the RC integration breaks
+        and Parker must regenerate the key from his own user account.
+        **At cutover, regenerate as either a Team Key (recommended) or
+        a Parker-owned Individual Key so the RC integration is no longer
+        coupled to silexdev's account.**
       - Offering `caddiePro` already exists with both packages
         (`month1_caddiePro` Pro, `$rc_monthly` → `month1_caddie` Basic);
         no offering changes needed
@@ -213,11 +222,26 @@ Dashboard → Authentication → Providers → **Apple**:
 
 - [ ] Enable provider
 - [ ] Paste **Services ID** (from Apple Developer → Identifiers)
-- [ ] Paste **Team ID**
-- [ ] Paste **Key ID** (from Apple Developer → Keys → Sign in with Apple key)
-- [ ] Paste **Private Key** (.p8 contents)
+      Currently: `com.caddieaiapp.app.signin`
+- [ ] Paste **Team ID** (`AHYLLM9RY8`)
+- [ ] Paste **Key ID** (currently `3G526MFG5A` — from developer.apple.com →
+      Keys → "Caddie AI Sign In")
+- [ ] **Secret Key** field expects a JWT, NOT the raw `.p8` contents.
+      Generate the JWT by running `node scripts/gen-apple-secret.mjs`
+      and paste the output. Apple caps the JWT lifetime at 180 days.
 
-(This is separate from the APNs key — Apple OAuth uses a different signing key.)
+(The .p8 is a separate key from the APNs .p8 — Apple Sign In and APNs use
+different signing keys with different services enabled in Apple Developer.)
+
+**JWT rotation reminder:** the Apple client_secret JWT we generate above
+expires every ~180 days. Apple sign-in breaks the moment it expires.
+Calendar reminder ~150 days from each rotation to regenerate ahead of
+the deadline. Steps:
+
+1. `node scripts/gen-apple-secret.mjs` (auto-uses 180-day TTL)
+2. Copy the printed JWT
+3. Supabase Dashboard → Authentication → Providers → Apple → paste over
+   the existing Secret Key → Save
 
 **Also update Apple Developer → Service ID → Return URLs.** The Service ID
 created during initial setup pointed at the dev Supabase callback URL.
