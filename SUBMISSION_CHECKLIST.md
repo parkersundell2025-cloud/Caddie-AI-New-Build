@@ -21,27 +21,38 @@ to TestFlight. Items are grouped by owner.
 
 ### Client-owned (Parker)
 
-- [ ] **App Store Connect record** at bundle ID `com.caddieaiapp.app`
-      (separate from the older rejected `com.base69e5121277e4e0398b59c054.app`
-      record — that one should be archived after we ship)
-- [ ] **silexdev added as App Manager (or Admin)** on the new App Store
+- [x] **App Store Connect record** at bundle ID `com.caddieaiapp.app`
+- [x] **silexdev added as App Manager (Admin)** on the new App Store
       Connect record
-- [ ] **In-App Purchase products** configured in App Store Connect:
-      - Caddie AI Basic — auto-renewable monthly, ~$14.99
-      - Caddie AI Pro — auto-renewable monthly, ~$28.99
-      - Both in a single Subscription Group
-- [ ] **RevenueCat dashboard** connected to App Store Connect via API key;
-      offering "default" created with both packages
+- [x] **In-App Purchase products** configured in App Store Connect:
+      - Caddie AI Basic — `com.caddieaiapp.basic.monthly`, $14.99/mo, 1-week trial
+      - Caddie AI Pro — `com.caddieaiapp.pro.monthly`, $28.99/mo, 1-week trial
+      - Both in subscription group "Caddie AI Subscriptions"
+      - Localizations + Review screenshot + Availability set; status "Ready to Submit"
+      - (The Base44-era IDs `month1_caddie` / `month1_caddiePro` are
+        permanently reserved by Apple on the old rejected app and can't
+        be reused. revenueCatWebhook maps both old and new IDs for safety.)
+- [x] **RevenueCat dashboard** connected to App Store Connect via Team API key;
+      offering "caddiePro" updated with both new packages
 - [ ] **iOS public API key** from RevenueCat (`appl_...`) → us
-- [ ] **APNs Authentication Key** (`.p8` + Key ID + Team ID) generated in
-      Apple Developer → Keys → us
-- [ ] **Sign in with Apple Service ID + Key** (`.p8` + Services ID + Key ID)
-      generated in Apple Developer → us
-- [ ] **Apple Distribution Certificate + App Store Provisioning Profile** for
-      `com.caddieaiapp.app` (closer to build time; see _Manual signing
-      workaround_) → exported as `.p12` + `.mobileprovision` → us
+      (only needed if/when we enable RevenueCat client SDK identifier
+      auto-aliasing; currently using the existing dev key from .env.local
+      which works fine for TestFlight)
+- [x] **APNs Authentication Key** (`.p8` + Key ID + Team ID): Key ID
+      `SKKPXG2PG6`, Team ID `AHYLLM9RY8`. Stored in Supabase function secrets.
+- [x] **Sign in with Apple Service ID + Key**: Services ID
+      `com.caddieaiapp.app.signin`, Key ID `3G526MFG5A`. Apple OAuth
+      provider configured in Supabase Auth with a 180-day JWT signed by
+      the .p8 (rotation via `scripts/gen-apple-secret.mjs`, expires
+      2026-12-05).
+- [x] **Apple Distribution Certificate + App Store Provisioning Profile** for
+      `com.caddieaiapp.app`: .p12 imported into login Keychain, profile
+      installed under ~/Library/MobileDevice/. Both expire 2027-06-08.
 - [ ] **Apple Developer Program conversion** from Individual → Organization
-      started (D-U-N-S number + Apple paperwork; ~2-3 week processing)
+      started (D-U-N-S number + Apple paperwork; ~2-3 week processing).
+      Lower priority now that manual signing is working end-to-end —
+      but worth doing for cleaner long-term ops (no Parker round-trips
+      for cert rotation, ability to add silexdev to the dev team).
 
 ### Us-owned (silexdev)
 
@@ -66,46 +77,35 @@ to TestFlight. Items are grouped by owner.
 - [x] `device_token` migration + push trigger migration applied to Supabase
 - [x] Vault secrets seeded (`supabase_url`, `service_role_key`) for trigger
 - [x] Resend SMTP wired to Supabase (Path A — verified `caddieaiapp.com` domain)
-- [ ] **Cancel Subscription source-aware branching** — currently always shows
-      in-app cancel. Need: branch on `subscription_source` field — if
-      Apple IAP (`app_store`), show "Manage in iOS Settings" link
-      (Apple 5.1.1 requirement). If Stripe, in-app cancel as-is. Blocked on:
-      RevenueCat setting that field once IAP is live.
-- [ ] **`VITE_REVENUECAT_IOS_KEY`** in `.env.local` — once Parker sends the
-      `appl_...` key, paste in and rebuild. SubscribeNow flow will then
-      route through Apple IAP instead of Stripe.
-- [ ] **APNs secrets** on Supabase — once Parker sends the `.p8` key:
-
-      ```bash
-      npx supabase secrets set APNS_AUTH_KEY="$(cat AuthKey_XXXXXX.p8)"
-      npx supabase secrets set APNS_KEY_ID=XXXXXXXXXX
-      npx supabase secrets set APNS_TEAM_ID=YYYYYYYYYY
-      npx supabase secrets set APNS_BUNDLE_ID=com.caddieaiapp.app
-      npx supabase secrets set APNS_USE_SANDBOX=true   # for TestFlight
-      ```
-- [ ] **Apple OAuth provider** configured in Supabase Auth → Providers → Apple
-      (needs the Service ID + key from Parker)
-- [ ] **Google OAuth provider** configured in Supabase Auth → Providers → Google.
-      Steps:
-      1. console.cloud.google.com → create a new project (or pick an
-         existing one)
-      2. APIs & Services → OAuth consent screen → External user type →
-         fill in app name "Caddie AI", support email, developer contact
-      3. APIs & Services → Credentials → "+ Create Credentials" → OAuth
-         client ID → Application type: **Web application**
-      4. **Authorized redirect URIs:** add
-         `https://dbvsnzppevytanoxzgwj.supabase.co/auth/v1/callback`
-         (replace with the client project ref at cutover)
-      5. Copy the **Client ID** + **Client Secret**
-      6. Supabase Dashboard → Authentication → Providers → Google →
-         enable → paste both values → Save
-- [ ] **Xcode → Signing & Capabilities** — once we have Apple Developer
-      Program team access (post-conversion or via manual signing):
-      - +Capability → Push Notifications
-      - +Capability → Background Modes → Remote notifications
-      - +Capability → Sign in with Apple
-      - +Capability → Associated Domains → add `applinks:caddieaiapp.com`
-      - Set team to "Parker James Sundell" or successor Organization
+- [x] **Cancel Subscription source-aware branching** — ManageSubscription.jsx
+      now branches on `subscription_source`: Apple/Play store → link to
+      platform Settings; Stripe → in-app cancel. completeStripeCheckout
+      writes the source authoritatively at Stripe Checkout success.
+- [x] **APNs secrets** on Supabase — APNS_AUTH_KEY, APNS_KEY_ID,
+      APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_USE_SANDBOX all set via
+      `supabase secrets set`. Push pipeline verified end-to-end
+      (Postgres trigger → pg_net → edge fn → APNs returns
+      BadDeviceToken for fake token = correct path).
+- [x] **Apple OAuth provider** configured in Supabase Auth → Providers → Apple.
+      Service ID `com.caddieaiapp.app.signin`, Team ID `AHYLLM9RY8`, Key
+      ID `3G526MFG5A`, 180-day signed JWT in the Secret Key field.
+      Verified end-to-end on Vercel preview (new Apple user
+      `tony_raiders@hotmail.com` signed up + subscribed).
+- [x] **Google OAuth provider** configured in Supabase Auth → Providers
+      → Google. Verified end-to-end on Vercel preview (admin@silexdev.com).
+- [ ] **`VITE_REVENUECAT_IOS_KEY`** in Vercel env vars — once we want
+      the iOS-build paywall to route through Apple IAP via RC client
+      SDK. Currently the iOS paywall reads from RC's existing public
+      key in the codebase, which works once the Capacitor build is
+      uploaded.
+- [ ] **Xcode → Signing & Capabilities** — verify these are enabled
+      on the App target. We don't yet know which are inferred from the
+      provisioning profile vs explicitly set in the project. If the
+      first TestFlight push fails for missing capabilities, return here:
+      - Push Notifications
+      - Background Modes → Remote notifications
+      - Sign in with Apple
+      - Associated Domains → `applinks:caddieaiapp.com`
 
 ### Universal Links activation (~10 min once DNS + entitlement land)
 
@@ -196,44 +196,46 @@ fresh files. After Organization conversion completes this becomes a non-issue
 
 ---
 
-## 2. Version bumping
+## 2. Build + upload (one command)
 
-Before every TestFlight upload, bump both:
-
-- **MARKETING_VERSION** (CFBundleShortVersionString) — user-facing semver
-  like `1.0.0`. Bump per release.
-- **CURRENT_PROJECT_VERSION** (CFBundleVersion) — internal monotonic build
-  number like `1`, `2`, `3`. Bump for every TestFlight upload, even
-  patch-level rebuilds.
-
-Set in Xcode → App target → General, or via `agvtool`:
+The whole archive + sign + export + upload pipeline runs as a single
+shell command. See `RELEASE.md` for full details, but the short version:
 
 ```bash
-cd ios/App
-agvtool new-marketing-version 1.0.0
-agvtool new-version -all 1
+./scripts/build-ios-testflight.sh
 ```
 
-Apple rejects re-uploads with the same build number.
+This handles:
+- `npm run build` (web bundle)
+- `npx cap sync ios` (copy bundle into iOS)
+- `xcodebuild archive` (compile + sign with local Distribution Cert)
+- `xcodebuild -exportArchive` (produce signed .ipa)
+- `xcrun altool --upload-app` (push to App Store Connect via ASC API key)
 
----
+### Why not Xcode's "Distribute App" UI?
 
-## 3. Archive + upload
+Parker's Individual Apple Developer enrollment means silexdev's Apple ID
+cannot join the team. Xcode's UI flow rejects the build at the
+distribution step with "No Account for Team AHYLLM9RY8". The CLI tools
+use the locally-installed Distribution Cert + Provisioning Profile +
+ASC Team API Key directly and don't need a team-member Apple ID.
+
+### Build number policy
+
+The script auto-derives `CURRENT_PROJECT_VERSION` (the build number Apple
+checks for uniqueness) from the repo's commit count. You don't have to
+bump it manually before each upload — every new commit gives you a new
+build number naturally.
+
+Marketing Version (e.g., "1.0" → "1.1") is left to manual editing in
+the Xcode project — bump when you actually ship a feature release, not
+for every TestFlight push.
+
+If you need to re-upload from the same commit (rare):
 
 ```bash
-cd /Users/tonyt/Projects/caddie-ai-golf-coach
-npm run build
-npx cap sync ios
-npx cap open ios
+BUILD_NUMBER_OVERRIDE=<higher_number> ./scripts/build-ios-testflight.sh
 ```
-
-Then in Xcode:
-
-1. Select **Any iOS Device (arm64)** in the device dropdown (not a Simulator)
-2. **Product → Archive**
-3. Wait ~5-10 min for the archive to finish
-4. **Distribute App** → **App Store Connect** → **Upload**
-5. Wait ~10-30 min for App Store Connect to process the upload
 
 After processing, the build appears under TestFlight in App Store Connect.
 

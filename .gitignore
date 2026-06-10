@@ -3,6 +3,20 @@
 .env.*
 !.env.*.example
 
+# Apple credentials — private keys and certs that should never be committed.
+# Public identifiers (Team ID, Key ID, Service ID) live in source freely;
+# only the key material (.p8 / .p12) and assembled provisioning data are
+# secret. Belt-and-suspenders since these typically live outside the repo
+# but it's cheap to catch an accidental cp into the project root.
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+*.pem
+*.pfx
+*Certificates.p12
+AuthKey_*.p8
+
 # Logs
 /logs
 *.log
@@ -16,6 +30,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# iOS build output from scripts/build-ios-testflight.sh
+# Contains the .xcarchive + exported .ipa + xcdistributionlogs.
+# Each build is ~15MB+ of transient artifacts that regenerate every run.
+build/
 
 # Editor directories and files
 .vscode/*
