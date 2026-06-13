@@ -1,12 +1,33 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { alignRevenueCatAppUserId } from '@/lib/db';
-import { identifyRevenueCatUser } from '@/lib/revenuecat';
+import { identifyRevenueCatUser, setRevenueCatSubscriberAttributes } from '@/lib/revenuecat';
+import { bindAttributionPostSignup } from '@/lib/affiliate-attribution';
 
 const AuthContext = createContext();
 
 // Shape the Supabase auth user like the old base44.auth.me() result.
 const shapeUser = (u) => (u ? { ...u, role: u.app_metadata?.role ?? 'user' } : null);
+
+// In-memory: which user IDs we've already attempted affiliate-bind for in this
+// tab/session. onAuthStateChange fires on every TOKEN_REFRESHED too — without
+// this we'd POST bindAffiliateAttribution every ~60 minutes for the lifetime
+// of the tab. Server-side is idempotent (UNIQUE on user_email), but the
+// in-memory cache avoids the wasted round-trip.
+const affiliateBindAttempted = new Set();
+
+async function maybeBindAffiliate(userId) {
+  if (!userId || affiliateBindAttempted.has(userId)) return;
+  affiliateBindAttempted.add(userId);
+  const result = await bindAttributionPostSignup();
+  if (!result?.bound) return;
+  // Pass the affiliate id + code through to RC as subscriber attributes so
+  // future iOS purchase webhooks carry the attribution. No-op on web.
+  setRevenueCatSubscriberAttributes({
+    affiliate_id: result.affiliate_id,
+    affiliate_code: result.code,
+  });
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -37,6 +58,11 @@ export const AuthProvider = ({ children }) => {
       // taps Subscribe from the SubscribeNow page before completing sign-in
       // (rare, but the SDK supports it). No-op on web.
       identifyRevenueCatUser(u.id);
+      // Once per session: if the user clicked an influencer link before
+      // signing up, bind that affiliate to their account now. The bind fn
+      // is idempotent server-side; the in-memory set above skips the
+      // round-trip on token-refresh ticks.
+      maybeBindAffiliate(u.id);
     }
   };
 

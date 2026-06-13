@@ -19,9 +19,19 @@
     <meta name="apple-mobile-web-app-title" content="Caddie AI" />
     <meta name="application-name" content="Caddie AI" />
 
-    <!-- Meta Pixel Code -->
-    <script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','3479477215550657');fbq('track','PageView');</script>
-    <!-- End Meta Pixel Code -->
+    <!-- Meta Pixel queue stub.
+         The actual Pixel script + init/track is deferred to src/lib/meta-pixel.js
+         so we can gate it on iOS App Tracking Transparency (ATT) permission.
+         Apple Guideline 5.1.2(i) requires apps to obtain user consent via the
+         ATT prompt before performing cross-app tracking, and Meta Pixel
+         qualifies as tracking. The stub here keeps any fbq() calls elsewhere
+         in the codebase (CheckoutSuccess.jsx fires CompleteRegistration)
+         from erroring before the real fbq lands — calls are queued and
+         replayed once the real Pixel script loads. -->
+    <script>
+      window.fbq = window.fbq || function () { (window.fbq.queue = window.fbq.queue || []).push(arguments); };
+      window.fbq.queue = window.fbq.queue || [];
+    </script>
 
     <title>Caddie AI — AI Golf Coaching App for iPhone</title>
     <meta name="description" content="Caddie AI is an AI-powered golf coaching app for iPhone. Personalized practice plans, an AI coach that knows your game and a competitive leaderboard." />

@@ -58,6 +58,27 @@ export async function identifyRevenueCatUser(appUserID) {
   }
 }
 
+// Attach subscriber attributes to the current RC user. These show up on every
+// RC webhook payload, which is how affiliate attribution travels from the
+// device → RC → our webhook. iOS-only; on web Stripe checkout passes the same
+// info via session metadata instead.
+//
+// Standard RC attributes (e.g. $email) are recognized as reserved keys; our
+// affiliate keys are CUSTOM attributes (no $ prefix) and can be filtered on
+// in the RC dashboard.
+export async function setRevenueCatSubscriberAttributes(attrs) {
+  if (!isNative() || !attrs) return false;
+  const ok = await configureRevenueCat();
+  if (!ok) return false;
+  try {
+    await Purchases.setAttributes({ attributes: attrs });
+    return true;
+  } catch (e) {
+    console.warn('[revenuecat] setAttributes failed:', e?.message);
+    return false;
+  }
+}
+
 // Returns the dashboard-configured "current" offering's available packages,
 // or null on web / failure. UI uses this to render plan buttons.
 export async function getOfferings() {

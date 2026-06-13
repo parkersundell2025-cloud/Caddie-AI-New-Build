@@ -59,6 +59,8 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Caddie AI uses the camera so you can take a profile photo.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Caddie AI uses tracking to measure marketing campaign performance and deliver a more personalized experience. Your data is not shared with data brokers.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Caddie AI uses your photo library so you can choose a profile photo.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
