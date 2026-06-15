@@ -284,6 +284,25 @@ export default function SubscribeNow() {
             Your existing progress, rounds, sessions and coaching history are all saved and will be waiting for you when you subscribe.
           </p>
 
+          {/* Apple 3.1.2(c): subscription title/length/price + Terms (EULA) +
+              Privacy Policy must be visible within the app on the paywall.
+              Build #34 was rejected for missing the Terms + Privacy links here. */}
+          <div className="text-white/40 text-xs text-center leading-relaxed space-y-2 max-w-md mx-auto px-2">
+            <p>
+              <span className="text-white/70 font-semibold">Caddie AI Basic — $15/month</span> · Auto-renewing monthly subscription.
+              <br />
+              <span className="text-white/70 font-semibold">Caddie AI Pro — $29/month</span> · Auto-renewing monthly subscription.
+            </p>
+            <p>
+              Payment will be charged to your Apple ID account at confirmation of purchase. Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period, at the same price. You can manage and cancel your subscriptions at any time in your Apple ID account settings after purchase.
+            </p>
+            <p>
+              <a href="/terms" className="underline text-white/70">Terms of Use (EULA)</a>
+              {' · '}
+              <a href="/privacy" className="underline text-white/70">Privacy Policy</a>
+            </p>
+          </div>
+
           {/* Restore Purchases — required by Apple */}
           <div className="text-center space-y-3">
             <button
