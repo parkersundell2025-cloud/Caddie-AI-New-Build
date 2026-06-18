@@ -36,6 +36,7 @@
 
 import { serviceClient } from '../_shared/supabase.ts';
 import { corsHeaders, json } from '../_shared/cors.ts';
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 // RevenueCat App identifiers (from `list-apps` on project projfe7054d8).
 // Used to distinguish iOS App Store events from Stripe Web Billing events.
@@ -105,6 +106,201 @@ function msToISODate(ms: number | string | null | undefined): string | null {
   const n = Number(ms);
   if (!Number.isFinite(n)) return null;
   return new Date(n).toISOString().split('T')[0];
+}
+
+// ── Affiliate commission writes ─────────────────────────────────────────────
+// Wraps the existing profile-update path. Runs AFTER user_profile is updated
+// successfully so we never commission on a failed subscription state change.
+//
+// All errors here are swallowed + logged — the webhook must still ack 2xx so
+// RC doesn't retry the (already-applied) profile update. Idempotency comes
+// from affiliate_commission.event_id UNIQUE; a retried RC delivery hits the
+// same event_id and the INSERT no-ops.
+//
+// Revenue base: event.price_in_purchased_currency is the gross price the
+// customer paid (pre-store-cut). Per the v1 spec the commission is computed
+// against this number directly; netting out Apple/Google's 15-30% is left
+// to a follow-up so the math is reconciliable against RC's reports without
+// guesswork.
+
+type AffiliateRow = {
+  id: string;
+  code: string;
+  commission_type: 'percentage' | 'flat';
+  commission_rate: number;
+  status: 'active' | 'paused' | 'terminated';
+};
+
+// Map an RC event type → commission row event_type, or null when this RC
+// event should not produce a commission row.
+function mapEventTypeForCommission(rcEventType: string, isTrial: boolean):
+  | 'initial_purchase' | 'renewal' | 'trial_converted' | 'refund' | 'refund_reversal' | null {
+  if (rcEventType === 'INITIAL_PURCHASE' && !isTrial) return 'initial_purchase';
+  if (rcEventType === 'TRIAL_CONVERTED') return 'trial_converted';
+  if (rcEventType === 'RENEWAL') return 'renewal';
+  if (rcEventType === 'REFUND') return 'refund';
+  if (rcEventType === 'REFUND_REVERSED') return 'refund_reversal';
+  return null;
+}
+
+function computeCommissionCents(
+  aff: Pick<AffiliateRow, 'commission_type' | 'commission_rate'>,
+  grossCents: number,
+  isFirstPaying: boolean,
+): number {
+  const rate = Number(aff.commission_rate);
+  if (aff.commission_type === 'flat') {
+    // Flat is a one-time signup bounty in cents. Only fires on the first
+    // paying event per user; renewals after that earn nothing.
+    return isFirstPaying ? Math.round(rate) : 0;
+  }
+  // Percentage stored as 0..1 (0.20 = 20%).
+  return Math.round(grossCents * rate);
+}
+
+async function writeAffiliateCommission(
+  db: SupabaseClient,
+  userEmail: string,
+  // deno-lint-ignore no-explicit-any
+  event: any,
+): Promise<void> {
+  try {
+    // 1. Is this user attributed to an affiliate?
+    const { data: attr } = await db
+      .from('affiliate_attribution')
+      .select('affiliate_id')
+      .eq('user_email', userEmail)
+      .maybeSingle();
+    if (!attr) return;
+
+    // 2. Resolve affiliate. Skip if paused/terminated.
+    const { data: aff } = await db
+      .from('affiliate')
+      .select('id, code, commission_type, commission_rate, status')
+      .eq('id', attr.affiliate_id)
+      .maybeSingle<AffiliateRow>();
+    if (!aff) {
+      console.warn(`[revenueCatWebhook] attribution -> affiliate ${attr.affiliate_id} not found`);
+      return;
+    }
+    if (aff.status !== 'active') {
+      console.log(`[revenueCatWebhook] affiliate ${aff.code} status=${aff.status}; no commission written`);
+      return;
+    }
+
+    // 3. Does this RC event type produce a commission?
+    const isTrial = String(event.period_type || '').toUpperCase() === 'TRIAL';
+    const commissionEventType = mapEventTypeForCommission(event.type, isTrial);
+    if (!commissionEventType) return;
+
+    // 4. Event metadata.
+    const eventId = event.id ? String(event.id) : null;
+    if (!eventId) {
+      console.warn('[revenueCatWebhook] commission step: event missing id — skipping (would lose idempotency)');
+      return;
+    }
+    const priceUnit = Number(event.price_in_purchased_currency ?? 0);
+    const grossCents = Math.round(priceUnit * 100);
+    const currency = String(event.currency || 'USD');
+    const storeRaw = String(event.store || '').toLowerCase();
+    const ALLOWED_STORES = new Set(['app_store', 'play_store', 'mac_app_store', 'stripe', 'promotional']);
+    const store = ALLOWED_STORES.has(storeRaw) ? storeRaw : 'other';
+    const occurredAtMs = Number(event.purchased_at_ms || event.event_timestamp_ms || Date.now());
+    const occurredAt = new Date(occurredAtMs).toISOString();
+
+    // 5. Compute commission amount.
+    let commissionCents = 0;
+    if (commissionEventType === 'refund') {
+      // Try to offset the most recent unsent positive commission for this
+      // (affiliate, user) pair. Heuristic — refund→original mapping isn't
+      // 1:1 in RC's webhook payload. Anything already 'paid' or 'approved'
+      // is left alone; admin can manually adjust via the admin page.
+      const { data: lastPositive } = await db
+        .from('affiliate_commission')
+        .select('id, commission_cents')
+        .eq('affiliate_id', aff.id)
+        .eq('user_email', userEmail)
+        .eq('status', 'pending')
+        .gt('commission_cents', 0)
+        .order('occurred_at', { ascending: false })
+        .limit(1);
+      const target = lastPositive?.[0];
+      if (target) {
+        commissionCents = -Math.abs(target.commission_cents);
+        await db.from('affiliate_commission').update({ status: 'reversed' }).eq('id', target.id);
+      } else {
+        // No unsent positive row found — still record the refund so the
+        // ledger reflects reality. Use the commission that would have been
+        // due for this gross amount.
+        const wouldBe = computeCommissionCents(aff, grossCents, false);
+        commissionCents = -Math.abs(wouldBe);
+      }
+    } else if (commissionEventType === 'refund_reversal') {
+      // Mirror image of refund. Pull the most recent negative row.
+      const { data: lastReversal } = await db
+        .from('affiliate_commission')
+        .select('commission_cents')
+        .eq('affiliate_id', aff.id)
+        .eq('user_email', userEmail)
+        .lt('commission_cents', 0)
+        .order('occurred_at', { ascending: false })
+        .limit(1);
+      const target = lastReversal?.[0];
+      commissionCents = target
+        ? Math.abs(target.commission_cents)
+        : computeCommissionCents(aff, grossCents, false);
+    } else {
+      // initial_purchase / trial_converted / renewal → positive row.
+      let isFirstPaying = false;
+      if (aff.commission_type === 'flat') {
+        const { count } = await db
+          .from('affiliate_commission')
+          .select('*', { count: 'exact', head: true })
+          .eq('affiliate_id', aff.id)
+          .eq('user_email', userEmail)
+          .in('event_type', ['initial_purchase', 'trial_converted']);
+        isFirstPaying = !count;
+        if (!isFirstPaying) {
+          console.log(`[revenueCatWebhook] flat-rate affiliate ${aff.code} already paid for ${userEmail}; skipping ${commissionEventType}`);
+          return;
+        }
+      }
+      commissionCents = computeCommissionCents(aff, grossCents, isFirstPaying);
+      if (commissionCents <= 0) {
+        console.log(`[revenueCatWebhook] computed commission was ${commissionCents}; skipping write`);
+        return;
+      }
+    }
+
+    // 6. Insert. event_id UNIQUE handles RC retries idempotently.
+    const { error: insErr } = await db.from('affiliate_commission').insert({
+      affiliate_id: aff.id,
+      user_email: userEmail,
+      event_id: eventId,
+      event_type: commissionEventType,
+      store,
+      gross_revenue_cents: grossCents,
+      commission_cents: commissionCents,
+      currency,
+      commission_type_snapshot: aff.commission_type,
+      commission_rate_snapshot: aff.commission_rate,
+      occurred_at: occurredAt,
+    });
+    if (insErr) {
+      if ((insErr as { code?: string }).code === '23505') {
+        console.log(`[revenueCatWebhook] commission for event_id=${eventId} already written; idempotent skip`);
+        return;
+      }
+      console.error(`[revenueCatWebhook] commission insert failed for event_id=${eventId}:`, insErr.message);
+      return;
+    }
+    console.log(
+      `[revenueCatWebhook] commission written affiliate=${aff.code} user=${userEmail} type=${commissionEventType} cents=${commissionCents}`,
+    );
+  } catch (e) {
+    // Never fail the webhook over commission logic.
+    console.error('[revenueCatWebhook] commission step error:', (e as Error).message);
+  }
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -279,6 +475,13 @@ Deno.serve(async (req: Request) => {
         return json({ error: 'Profile create failed', detail: insErr.message }, 500);
       }
       console.log(`[revenueCatWebhook] Created profile ${created.id} for iOS subscriber ${userEmail}`);
+
+      // Affiliate commission for the new-profile path. Skip trials — paid
+      // commission only on TRIAL_CONVERTED (a separate later event).
+      if (!isInTrial) {
+        await writeAffiliateCommission(db, userEmail, event);
+      }
+
       return json({ success: true, created: true, email: userEmail });
     }
 
@@ -491,6 +694,12 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log(`[revenueCatWebhook] Updated ${userEmail}:`, JSON.stringify(updates));
+
+    // Affiliate commission step. mapEventTypeForCommission() filters out
+    // events that shouldn't pay (TRIAL_STARTED, CANCELLATION, EXPIRATION, etc.)
+    // so it's safe to call unconditionally here.
+    if (userEmail) await writeAffiliateCommission(db, userEmail, event);
+
     return json({ success: true, email: userEmail, event: eventType, updated: updates });
   } catch (e) {
     const err = e as Error;

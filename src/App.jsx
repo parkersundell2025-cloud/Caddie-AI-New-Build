@@ -14,7 +14,9 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { isNative, NATIVE_URL_SCHEME } from '@/lib/platform';
 import { configureRevenueCat } from '@/lib/revenuecat';
+import { initMetaPixelWithATT } from '@/lib/meta-pixel';
 import { addPushTappedListener } from '@/lib/push-notifications';
+import { captureRefFromUrl } from '@/lib/affiliate-attribution';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Keyboard, KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
 import { Network } from '@capacitor/network';
@@ -50,6 +52,12 @@ import SendFeedback from './pages/SendFeedback';
 import AdminFeedback from './pages/AdminFeedback';
 import AdminWaitlistCredits from './pages/AdminWaitlistCredits';
 import AdminFixUser from './pages/AdminFixUser';
+import AdminAffiliates from './pages/AdminAffiliates';
+import AdminAffiliateNew from './pages/AdminAffiliateNew';
+import AdminAffiliateDetail from './pages/AdminAffiliateDetail';
+import AdminAffiliatePayouts from './pages/AdminAffiliatePayouts';
+import AffiliateLogin from './pages/AffiliateLogin';
+import AffiliateDashboard from './pages/AffiliateDashboard';
 import ClubDistances from './pages/ClubDistances';
 import SubscriptionCheckout from './pages/SubscriptionCheckout';
 import CreateAccount from './pages/CreateAccount';
@@ -87,10 +95,23 @@ function RootRoute() {
         console.log('[RootRoute] Profile subscription_status:', profile?.subscription_status);
         console.log('[RootRoute] Profile stripe_subscription_id:', profile?.stripe_subscription_id);
         
-        // Step 1: No UserProfile exists → user has not subscribed yet → /subscribe-now
+        // Step 1: No UserProfile exists. Before bouncing to /subscribe-now,
+        // check if this signed-in email belongs to an affiliate. If it does,
+        // they're an influencer signing in to their dashboard (typical magic-
+        // link redirect overrides routed them through /). Otherwise it's a
+        // would-be app user without a subscription yet.
         if (!profile) {
-          console.log('[RootRoute] NO PROFILE - redirecting to /subscribe-now');
-          setDestination('/subscribe-now');
+          unwrap(supabase.from('affiliate').select('id').limit(1)).then(affs => {
+            if (affs && affs.length > 0) {
+              console.log('[RootRoute] NO PROFILE + affiliate row exists -> /affiliate/dashboard');
+              setDestination('/affiliate/dashboard');
+            } else {
+              console.log('[RootRoute] NO PROFILE - redirecting to /subscribe-now');
+              setDestination('/subscribe-now');
+            }
+          }).catch(() => {
+            setDestination('/subscribe-now');
+          });
           return;
         }
         
@@ -263,6 +284,9 @@ const AuthenticatedApp = () => {
             <Route path="/subscribe-now" element={<SubscribeNow />} />
             <Route path="/gateway" element={<Gateway />} />
             <Route path="/autologin" element={<AutoLogin />} />
+            {/* Affiliate self-serve. Public routes — own gate logic in the components. */}
+            <Route path="/affiliate/login" element={<AffiliateLogin />} />
+            <Route path="/affiliate/dashboard" element={<AffiliateDashboard />} />
 
             {/* Onboarding — handles sign-in, new user questions, and redirect to /home when done */}
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
@@ -276,6 +300,10 @@ const AuthenticatedApp = () => {
             <Route path="/admin/feedback" element={<ProtectedRoute><AdminFeedback /></ProtectedRoute>} />
             <Route path="/admin/waitlist-credits" element={<ProtectedRoute><AdminWaitlistCredits /></ProtectedRoute>} />
             <Route path="/admin/fix-user" element={<ProtectedRoute><AdminFixUser /></ProtectedRoute>} />
+            <Route path="/admin/affiliates" element={<ProtectedRoute><AdminAffiliates /></ProtectedRoute>} />
+            <Route path="/admin/affiliates/new" element={<ProtectedRoute><AdminAffiliateNew /></ProtectedRoute>} />
+            <Route path="/admin/affiliates/payouts" element={<ProtectedRoute><AdminAffiliatePayouts /></ProtectedRoute>} />
+            <Route path="/admin/affiliates/:id" element={<ProtectedRoute><AdminAffiliateDetail /></ProtectedRoute>} />
             <Route path="/club-distances" element={<ProtectedRoute><ClubDistances /></ProtectedRoute>} />
             <Route
               element={
@@ -375,9 +403,17 @@ function DeepLinkRouter() {
           }
         }
 
-        // Strip auth params before SPA navigate — they've been consumed and
-        // shouldn't leak into Gateway's view. Keep any non-auth query params.
-        ['code', 'error', 'error_description'].forEach((k) => search.delete(k));
+        // Affiliate ref capture — if the inbound URL carries ?ref=CODE,
+        // stash it (fire-and-forget). Validation happens server-side; bad
+        // codes silently no-op. Done before stripping the param so we don't
+        // miss it, but the param is dropped from the SPA navigate below.
+        if (search.has('ref')) {
+          captureRefFromUrl('?' + searchStr).catch(() => { /* logged inside */ });
+        }
+
+        // Strip auth + ref params before SPA navigate — they've been consumed
+        // and shouldn't leak into Gateway's view. Keep any other query params.
+        ['code', 'error', 'error_description', 'ref'].forEach((k) => search.delete(k));
         const cleanSearch = search.toString();
         const path = '/' + pathPart + (cleanSearch ? `?${cleanSearch}` : '');
         navigate(path, { replace: true });
@@ -397,6 +433,35 @@ function DeepLinkRouter() {
 function RevenueCatBoot() {
   useEffect(() => {
     configureRevenueCat();
+  }, []);
+  return null;
+}
+
+// Initialize Meta Pixel once at app boot, gated on iOS App Tracking
+// Transparency permission. On web the Pixel loads immediately; on iOS the
+// ATT dialog is shown the first time and Pixel only loads if the user
+// authorizes tracking. The init is one-time per app launch — subsequent
+// calls (e.g., from Strict Mode double-fire in dev) are no-ops.
+function MetaPixelBoot() {
+  useEffect(() => {
+    initMetaPixelWithATT();
+  }, []);
+  return null;
+}
+
+// Read ?ref=CODE from the boot URL (when an influencer link drops the user
+// onto the marketing site) and stash it in localStorage. The DeepLinkRouter
+// handles the native deep-link case; this covers the web path only. Fires
+// once per page load; subsequent navigations don't re-capture because the
+// URL doesn't carry ?ref anymore. localStorage persists across reloads, so
+// signup attribution still works after a page reload or several days of
+// browsing.
+function AffiliateRefBoot() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const { search } = window.location;
+    if (!search || !search.includes('ref=')) return;
+    captureRefFromUrl(search).catch(() => { /* logged inside */ });
   }, []);
   return null;
 }
@@ -523,6 +588,8 @@ function App() {
         <Router>
           <ColorSchemeWatcher />
           <RevenueCatBoot />
+          <MetaPixelBoot />
+          <AffiliateRefBoot />
           <KeyboardConfigurer />
           <StatusBarController />
           <DeepLinkRouter />
