@@ -1,5 +1,7 @@
 import WelcomeNav from '@/components/welcome/WelcomeNav';
 import WelcomeFooter from '@/components/welcome/WelcomeFooter';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 
 const sections = [
   {
@@ -78,12 +80,24 @@ const sections = [
 ];
 
 export default function Terms() {
+  const navigate = useNavigate();
+  const handleBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate('/');
+  };
   return (
     <div style={{ backgroundColor: '#1a2e1a', color: '#f9f9f7', minHeight: '100vh' }} className="flex flex-col">
       <WelcomeNav />
-      
+
       <main className="flex-1 pt-24 md:pt-32 pb-20 px-6 md:px-12">
         <div className="max-w-4xl mx-auto">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1 mb-6 text-sm text-white/70 hover:text-white transition-colors active:scale-95"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back
+          </button>
           <h1 className="font-serif font-bold text-4xl md:text-5xl mb-2">Terms of Service</h1>
           <p className="text-white/60 text-sm mb-12">Last updated: April 2026</p>
 

@@ -13,6 +13,15 @@ const SAGE = '#a8d5a2';    // sage button
 // DeepLinkRouter in App.jsx forwards into the SPA after running the Supabase
 // session exchange. On web, a regular https origin redirect — supabase-js
 // auto-detects the session in the URL via detectSessionInUrl.
+//
+// Note on affiliate ref propagation across browsers: Supabase's verify
+// endpoint strips ALL user-provided query strings AND fragments from the
+// redirect_to URL — it overwrites the fragment with its own auth tokens
+// and falls back to Site URL for the path when allowlist matching is
+// wildcard-only. There is therefore no way to pass the affiliate code
+// through the magic-link flow itself. Same-browser attribution still
+// works via localStorage; cross-browser (Instagram WebView → Mail → Safari)
+// loses attribution. Tracked as a known v1.1 limitation.
 const redirectTo = () =>
   isNative() ? `${NATIVE_URL_SCHEME}://gateway` : `${window.location.origin}/gateway`;
 
