@@ -17,6 +17,38 @@ import { getPlatform } from '@/lib/platform';
 const STORAGE_KEY = 'caddie:aff_ref';
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+// Capture any ?ref= on the URL at MODULE LOAD time and stash it to
+// localStorage SYNCHRONOUSLY. This runs before React mounts, before
+// AuthContext fires its onAuthStateChange, and before Gateway navigates
+// away. Critical because magic-link landings briefly hit
+// /gateway?ref=CODE#access_token=... and Gateway redirects within the
+// first render — too fast for any useEffect-based capture to see the
+// ?ref param.
+//
+// The bind edge fn re-validates server-side, so writing a raw unvalidated
+// code here is safe: an invalid code just produces a noop bind.
+(function captureRefOnLoad() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!window.location.search.includes('ref=')) return;
+    const raw = new URLSearchParams(window.location.search).get('ref');
+    if (!raw) return;
+    const code = raw.trim().toUpperCase();
+    if (!code) return;
+    const existing = (() => {
+      try {
+        const j = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '');
+        return typeof j?.code === 'string' ? j : null;
+      } catch { return null; }
+    })();
+    const payload = {
+      code,
+      first_seen_at: existing?.code === code ? existing.first_seen_at : Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch { /* storage disabled / quota / parse — fail silent */ }
+})();
+
 function readStash() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -101,6 +133,13 @@ export async function captureRefFromUrl(urlOrSearch) {
     return null;
   }
 
+  // Stash IMMEDIATELY before the async validate call. This is what lets
+  // bindAttributionPostSignup read the code from localStorage even if the
+  // URL has navigated away by the time the auth-state-change handler fires.
+  // The bind edge fn re-validates server-side, so an invalid code stashed
+  // here just produces a noop bind (no attribution row) — safe.
+  writeStash(code.toUpperCase());
+
   const { data, error } = await supabase.functions.invoke('validateAffiliateCode', {
     body: { code },
   });
@@ -108,37 +147,70 @@ export async function captureRefFromUrl(urlOrSearch) {
   // we MUST check `error` before reading `data`.
   if (error) {
     console.warn('[affiliate] validate fn errored:', error.message || error);
+    clearStash();
     return null;
   }
   if (!data?.valid) {
     console.log('[affiliate] code rejected:', code, data?.reason);
+    clearStash();
     return null;
   }
-  writeStash(data.affiliate.code);
   return data.affiliate; // { id, code, display_name }
 }
 
 /**
- * After the user is authenticated, send the stashed ref to the bind edge fn.
+ * Read a ref code from the current URL search params (synchronous). Returns
+ * null if no usable code is present. Used to bridge the localStorage gap
+ * between the browser context that captured the original click and the
+ * browser context that consumes the magic-link redirect (e.g. Instagram
+ * WebView vs Safari — different localStorage scopes).
+ *
+ * SignIn appends `?ref=<code>` to the magic-link / OAuth redirect URL so the
+ * code survives the cross-browser hop. bindAttributionPostSignup then prefers
+ * this URL value over localStorage when both are available.
+ */
+function readRefFromUrl() {
+  if (typeof window === 'undefined') return null;
+  const search = window.location.search;
+  if (!search || !search.includes('ref=')) return null;
+  try {
+    const raw = new URLSearchParams(search).get('ref');
+    if (!raw) return null;
+    const code = raw.trim().toUpperCase();
+    return code || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * After the user is authenticated, send the ref code to the bind edge fn.
  * Idempotent server-side (UNIQUE on user_email). Always clears the stash
  * after attempt — a single try is enough; if it failed (network blip), the
  * commission step won't fire but the user state is still consistent.
  *
+ * Code source priority:
+ *   1. ?ref=<code> on the current URL — survives cross-browser redirects
+ *      (Instagram WebView → Mail → Safari, for example)
+ *   2. localStorage stash — same-browser flow
+ *
  * Returns { bound, affiliate_id, code } or null if nothing to bind.
  */
 export async function bindAttributionPostSignup() {
-  const stash = readStash();
-  if (!stash) return null;
+  const urlCode = readRefFromUrl();
+  const stash = urlCode ? null : readStash();
+  if (!urlCode && !stash) return null;
+
+  const code = urlCode ?? stash.code;
+  const firstSeenAt = stash
+    ? new Date(stash.first_seen_at).toISOString()
+    : new Date().toISOString();
 
   const platform = getPlatform(); // 'ios' | 'android' | 'web'
   const source = platform === 'ios' ? 'ios' : platform === 'android' ? 'android' : 'web';
 
   const { data, error } = await supabase.functions.invoke('bindAffiliateAttribution', {
-    body: {
-      code: stash.code,
-      source,
-      first_seen_at: new Date(stash.first_seen_at).toISOString(),
-    },
+    body: { code, source, first_seen_at: firstSeenAt },
   });
   // Always clear stash after attempt — don't infinitely re-bind on every
   // sign-in. If the network errored, the user remains unattributed; that's
