@@ -1,6 +1,7 @@
 import { corsHeaders, json } from '../_shared/cors.ts';
 import { serviceClient, getUser } from '../_shared/supabase.ts';
 import { invokeLLM } from '../_shared/anthropic.ts';
+import { hasProAccess } from '../_shared/subscription.ts';
 // deno-lint-ignore no-explicit-any
 type DB = any;
 
@@ -118,7 +119,7 @@ Deno.serve(async (req) => {
     const { data: profiles } = await db.from('user_profile').select('*').eq('user_email', user.email);
     const profile = profiles?.[0];
     if (!profile) return json({ error: 'No profile found' }, 404);
-    if (profile.subscription_status !== 'pro') return json({ error: 'Pro plan required' }, 403);
+    if (!hasProAccess(profile)) return json({ error: 'Pro plan required' }, 403);
 
     const plan = await generateForUser(db, user.email, body.force || false);
     return json({ plan, cached: false });

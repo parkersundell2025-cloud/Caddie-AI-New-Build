@@ -47,6 +47,8 @@ import SubscriptionGate from './components/SubscriptionGate';
 import SmartPopupController from './components/popups/SmartPopupController';
 import Leaderboard from './pages/Leaderboard';
 import LeaderboardInfo from './pages/LeaderboardInfo';
+import AdminHome from './pages/AdminHome';
+import AdminAccounts from './pages/AdminAccounts';
 import AdminFlagged from './pages/AdminFlagged';
 import SendFeedback from './pages/SendFeedback';
 import AdminFeedback from './pages/AdminFeedback';
@@ -296,6 +298,8 @@ const AuthenticatedApp = () => {
             <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
             <Route path="/referral" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
             <Route path="/send-feedback" element={<ProtectedRoute><SendFeedback /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminHome /></ProtectedRoute>} />
+            <Route path="/admin/accounts" element={<ProtectedRoute><AdminAccounts /></ProtectedRoute>} />
             <Route path="/admin/flagged" element={<ProtectedRoute><AdminFlagged /></ProtectedRoute>} />
             <Route path="/admin/feedback" element={<ProtectedRoute><AdminFeedback /></ProtectedRoute>} />
             <Route path="/admin/waitlist-credits" element={<ProtectedRoute><AdminWaitlistCredits /></ProtectedRoute>} />

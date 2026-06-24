@@ -416,3 +416,10 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # function validates this itself, so we skip Supabase JWT verification.
 [functions.revenueCatWebhook]
 verify_jwt = false
+
+# stripeWebhook receives Stripe subscription events directly (bypassing RC for
+# Stripe-origin plan changes that RC's Web Billing integration silently
+# swallows). Stripe sends a Stripe-Signature header which the function
+# verifies against STRIPE_WEBHOOK_SECRET — no Supabase JWT in play.
+[functions.stripeWebhook]
+verify_jwt = false

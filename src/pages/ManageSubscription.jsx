@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { parseDateLocal } from '@/lib/dateUtils';
-import { ChevronLeft } from 'lucide-react';
+import { getUpgradeTarget } from '@/lib/subscription';
+import { ChevronLeft, Sparkles } from 'lucide-react';
 
 // 'YYYY-MM-DD' → 'June 13, 2026'. Uses parseDateLocal so a Postgres date
 // column ('2026-06-13') doesn't shift a day west of UTC.
@@ -145,6 +146,11 @@ export default function ManageSubscription() {
         {cancelError && !showCancelConfirm && (
           <p className="text-xs text-destructive text-center">{cancelError}</p>
         )}
+
+        {profile?.subscription_plan === 'basic' &&
+          ['basic', 'trial', 'cancelling'].includes(profile?.subscription_status) && (
+            <UpgradeToProCard profile={profile} navigate={navigate} />
+          )}
       </div>
 
       {/* Actions — inline below the status card. Cancel hidden when the
@@ -258,6 +264,42 @@ export default function ManageSubscription() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function UpgradeToProCard({ profile, navigate }) {
+  const handleUpgrade = () => {
+    const target = getUpgradeTarget(profile);
+    if (target.type === 'external') window.location.href = target.url;
+    else navigate(target.path);
+  };
+
+  return (
+    <div
+      className="rounded-2xl p-5 space-y-3"
+      style={{ backgroundColor: '#1a2e1a', border: '1px solid rgba(168,213,162,0.2)' }}
+    >
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-3.5 h-3.5" style={{ color: '#a8d5a2' }} />
+        <p
+          className="text-[10px] font-bold uppercase tracking-[0.15em]"
+          style={{ color: '#a8d5a2' }}
+        >
+          Upgrade Available
+        </p>
+      </div>
+      <p className="text-white font-bold text-base">Get Caddie AI Pro</p>
+      <p className="text-white/70 text-sm leading-snug">
+        Unlock monthly game plans, weekly reports, competitor intel, and deeper coaching context.
+      </p>
+      <button
+        onClick={handleUpgrade}
+        className="w-full py-3 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+        style={{ backgroundColor: '#a8d5a2', color: '#1a3d1a' }}
+      >
+        Upgrade to Pro
+      </button>
     </div>
   );
 }

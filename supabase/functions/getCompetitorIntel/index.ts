@@ -1,5 +1,6 @@
 import { corsHeaders, json } from '../_shared/cors.ts';
 import { serviceClient, getUser } from '../_shared/supabase.ts';
+import { hasProAccess } from '../_shared/subscription.ts';
 
 // Pro feature — anonymized competitive comparison. No LLM; pure aggregation.
 Deno.serve(async (req) => {
@@ -12,7 +13,7 @@ Deno.serve(async (req) => {
     const { data: myProfiles } = await db.from('user_profile').select('*').eq('user_email', user.email);
     const myProfile = myProfiles?.[0];
     if (!myProfile) return json({ error: 'No profile found' }, 404);
-    if (myProfile.subscription_status !== 'pro') return json({ error: 'Pro plan required' }, 403);
+    if (!hasProAccess(myProfile)) return json({ error: 'Pro plan required' }, 403);
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];

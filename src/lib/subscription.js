@@ -31,3 +31,25 @@ export function hasBasicOrBetter(profile) {
 export function hasExpiredTrial(profile) {
   return profile?.subscription_status === 'expired';
 }
+
+// Where to send a user when they tap "Upgrade to Pro" / "Change Plan".
+// Branches on subscription_source so the surface matches the store the sub
+// came from — Apple Guideline 5.1.1 requires App Store subs to be changed in
+// iOS Settings, not via an in-app payment surface.
+export function getUpgradeTarget(profile) {
+  const src = profile?.subscription_source;
+  if (src === 'app_store' || src === 'mac_app_store') {
+    return { type: 'external', url: 'itms-apps://apps.apple.com/account/subscriptions' };
+  }
+  if (src === 'play_store') {
+    return { type: 'external', url: 'https://play.google.com/store/account/subscriptions' };
+  }
+  // Stripe explicit OR migrated user with Stripe linkage (Base44 imports
+  // never populated subscription_source). Customer portal handles plan
+  // switching once it's enabled in Stripe Dashboard settings.
+  if (src === 'stripe' || profile?.stripe_customer_id) {
+    return { type: 'internal', path: '/customerportal' };
+  }
+  // No payment linkage — fresh user picking their first plan.
+  return { type: 'internal', path: '/subscribe-now' };
+}
