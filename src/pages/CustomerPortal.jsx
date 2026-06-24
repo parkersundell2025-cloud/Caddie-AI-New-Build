@@ -1,21 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 import Logo from '@/components/layout/Logo';
 
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
+// NOTE: We intentionally do NOT gate on user agent here. Anyone reaching
+// /customerportal has been routed through getUpgradeTarget(), which sends
+// Apple IAP subscribers to `itms-apps://` directly. By the time a user lands
+// here, their subscription is in Stripe — regardless of which device they're
+// holding. Previous versions of this page checked `navigator.userAgent` and
+// showed iOS subscribers a deep link to Apple's Subscriptions panel; for a
+// user with a Stripe sub on an iPhone, that panel correctly reports "no
+// subscriptions" and the upgrade flow dies.
 export default function CustomerPortal() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isIOS) return;
     let cancelled = false;
     (async () => {
-      // Return user to /manage-subscription so they see the updated state.
-      // Origin-relative so localhost dev and prod both work.
-      const returnUrl = `${window.location.origin}/manage-subscription`;
+      // Return URL: on web, return to whichever origin we came from. On
+      // native, use the caddieai:// custom URL scheme — iOS detects the
+      // scheme, closes SafariViewController, and fires the Capacitor App
+      // plugin's appUrlOpen back into the SPA. Universal Links would be
+      // theoretically cleaner but they're unreliable from SafariViewController
+      // context (Apple's routing differs from regular Safari), so the custom
+      // scheme is what every native Stripe flow in this codebase uses.
+      const returnUrl = isNative()
+        ? `${NATIVE_URL_SCHEME}://manage-subscription`
+        : `${window.location.origin}/manage-subscription`;
+
       const { data, error: invErr } = await supabase.functions.invoke('createStripePortalSession', {
         body: { return_url: returnUrl },
       });
@@ -28,34 +42,14 @@ export default function CustomerPortal() {
         setError(data?.error || 'Billing portal unavailable for this account.');
         return;
       }
-      window.location.href = data.url;
+      // openExternal() routes via Capacitor Browser (SafariViewController) on
+      // native and a plain window.location on web. We don't navigate the
+      // WKWebView itself — Stripe's CSP rejects that and the user gets
+      // trapped on the portal page with no way back.
+      await openExternal(data.url);
     })();
     return () => { cancelled = true; };
   }, []);
-
-  if (isIOS) {
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center gap-6 px-6 text-center"
-        style={{ backgroundColor: '#1a2e1a', color: '#f9f9f7' }}
-      >
-        <Logo size="lg" />
-        <div className="space-y-4 max-w-sm">
-          <p className="text-base font-semibold text-white">Manage your subscription in iOS Settings.</p>
-          <p className="text-sm" style={{ color: 'rgba(249,249,247,0.6)' }}>
-            Go to Settings → Apple ID → Subscriptions → Caddie AI
-          </p>
-          <a
-            href="itms-apps://apps.apple.com/account/subscriptions"
-            className="block w-full py-4 rounded-full font-bold text-sm text-center mt-4 active:scale-95 transition-all"
-            style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
-          >
-            Manage Subscription in iOS Settings →
-          </a>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (
