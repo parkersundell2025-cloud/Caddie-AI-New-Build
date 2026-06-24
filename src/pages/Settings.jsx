@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const MENU_ITEMS = [
@@ -18,6 +19,8 @@ const MENU_ITEMS = [
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSignOut = async () => {
@@ -31,6 +34,18 @@ export default function Settings() {
 
       {/* Menu Items */}
       <div className="flex-1 px-5 py-4 space-y-0">
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="w-full flex items-center justify-between py-4 px-3 text-foreground border-b border-border hover:bg-muted/30 transition-all active:scale-95 min-h-[44px]"
+          >
+            <span className="flex items-center gap-2 font-medium text-sm">
+              <Shield className="w-4 h-4" style={{ color: 'hsl(var(--primary))' }} />
+              Admin Tools
+            </span>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+        )}
         {MENU_ITEMS.map((item) => (
           <button
             key={item.id}

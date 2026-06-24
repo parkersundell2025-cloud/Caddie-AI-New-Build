@@ -62,6 +62,17 @@ const PLAN_FROM_PRODUCT: Record<string, 'basic' | 'pro'> = {
   // Stripe (RC-imported product IDs)
   'prod_UNQmTxp5xw8N0C': 'basic',
   'prod_UNQnQZbZ4pOtHo': 'pro',
+  // RC's *internal* product object IDs. Some RC webhook event types include
+  // these instead of the store_identifier — particularly PRODUCT_CHANGE on
+  // Stripe-origin subs. Without these, the upgrade silently overwrites the
+  // user back to 'basic' via the default fallback in getPlan().
+  // (Listed via mcp__revenuecat__list-products on project projfe7054d8.)
+  'prod0aaf40d266':      'basic',  // iOS com.caddieaiapp.basic.monthly
+  'prodadf207ab77':      'pro',    // iOS com.caddieaiapp.pro.monthly
+  'prod15571b3733':      'basic',  // Stripe prod_UNQmTxp5xw8N0C
+  'prod59d78fbb87':      'pro',    // Stripe prod_UNQnQZbZ4pOtHo
+  'prodcff849834f':      'basic',  // iOS legacy month1_caddie
+  'prodb8a8b72ce9':      'pro',    // iOS legacy month1_caddiePro
 };
 
 // Stripe Price IDs (fallback if RC ever sends a price instead of a product).

@@ -1,6 +1,7 @@
 import { corsHeaders, json } from '../_shared/cors.ts';
 import { serviceClient, getUser } from '../_shared/supabase.ts';
 import { invokeLLM } from '../_shared/anthropic.ts';
+import { hasProAccess } from '../_shared/subscription.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -11,7 +12,7 @@ Deno.serve(async (req) => {
 
     const { data: profiles } = await db.from('user_profile').select('*').eq('user_email', user.email);
     const profile = profiles?.[0];
-    if (!profile || profile.subscription_status !== 'pro') {
+    if (!hasProAccess(profile)) {
       return json({ skipped: true, reason: 'Not a Pro subscriber' });
     }
 

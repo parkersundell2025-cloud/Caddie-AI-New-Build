@@ -1,6 +1,7 @@
 import { corsHeaders, json } from '../_shared/cors.ts';
 import { serviceClient, getUser } from '../_shared/supabase.ts';
 import { invokeLLM } from '../_shared/anthropic.ts';
+import { hasProAccess } from '../_shared/subscription.ts';
 
 const DRILL_LIBRARY_SHORT = `DRIVING: The Tempo Towel Drill, The Gate Drill — Driver, The Slow Motion Drill, The Tee Height Ladder, The Foot Together Drill, The Alignment Stick Path Drill, The Impact Bag Drill, The 3 Ball Progression, The L to L Drill, The Eyes Closed Drill, The Step Through Drill, The 9 Shot Shape Drill, The Speed Training Drill.
 IRON PLAY: The Divot Board Drill, The Pump Drill, The Yardage Marker Drill, The Coin Drill, The Headcover Drill, The Ball Position Ladder, The Towel Under Lead Arm Drill, The Miss Drill, The Half Swing Compression Drill, The Knockdown Drill, The Random Club Drill, The One Handed Drill, The Par 3 Simulation Drill.
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
       if (!user) return json({ error: 'Unauthorized' }, 401);
       const { data: profiles } = await db.from('user_profile').select('*').eq('user_email', user.email);
       const profile = profiles?.[0];
-      if (!profile || profile.subscription_status !== 'pro') {
+      if (!hasProAccess(profile)) {
         return json({ error: 'Pro plan required' }, 403);
       }
       targetEmails = [user.email];

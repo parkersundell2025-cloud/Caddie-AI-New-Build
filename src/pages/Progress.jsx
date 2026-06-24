@@ -24,6 +24,7 @@ import CompetitorIntel from '@/components/pro/CompetitorIntel';
 import WeeklyReports from '@/components/pro/WeeklyReports';
 import PreRoundGamePlan from '@/components/pro/PreRoundGamePlan';
 import MonthlyGamePlanCard from '@/components/pro/MonthlyGamePlanCard';
+import ProGate from '@/components/pro/ProGate';
 
 // Celebration
 import CelebrationPopup from '@/components/share/CelebrationPopup';
@@ -314,10 +315,21 @@ export default function Progress() {
           <BadgeGrid earnedBadges={badges} />
         </div>
 
-        {/* Pro sections */}
-        {profile && <MonthlyGamePlanCard userEmail={profile.user_email} />}
-        <WeeklyReports />
-        <CompetitorIntel />
+        {/* Pro sections — gated behind ProGate so non-Pro users see an
+            upgrade CTA instead of broken empty states. */}
+        {profile && (
+          <>
+            <ProGate profile={profile} featureName="Monthly Game Plan">
+              <MonthlyGamePlanCard userEmail={profile.user_email} />
+            </ProGate>
+            <ProGate profile={profile} featureName="Weekly Reports">
+              <WeeklyReports />
+            </ProGate>
+            <ProGate profile={profile} featureName="Competitor Intel">
+              <CompetitorIntel />
+            </ProGate>
+          </>
+        )}
       </div>
 
       <CelebrationPopup
