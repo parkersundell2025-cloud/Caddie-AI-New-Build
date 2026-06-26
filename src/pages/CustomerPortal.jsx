@@ -47,9 +47,18 @@ export default function CustomerPortal() {
       // WKWebView itself — Stripe's CSP rejects that and the user gets
       // trapped on the portal page with no way back.
       await openExternal(data.url);
+
+      // On native, the SafariViewController is layered on top of the WebView.
+      // If the user taps the X to dismiss (instead of completing the flow and
+      // triggering the caddieai:// return URL), they'd land back on this
+      // perpetual-spinner page. Navigate the WebView underneath to
+      // /manage-subscription so dismiss/complete both land there cleanly.
+      if (isNative() && !cancelled) {
+        navigate('/manage-subscription', { replace: true });
+      }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [navigate]);
 
   if (error) {
     return (
