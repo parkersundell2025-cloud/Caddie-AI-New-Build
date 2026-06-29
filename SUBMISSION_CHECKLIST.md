@@ -1,16 +1,27 @@
 # iOS App Store submission checklist
 
+> **Status as of 2026-06-29: LIVE on the App Store.**
+>
+> - **App Store URL:** https://apps.apple.com/app/id6776209508
+> - **App Store ID:** `6776209508`
+> - **Current version:** 1.1.1
+> - **First release date:** 2026-06-22
+> - **Listing name:** "Caddie AI: Golf Coach"
+>
+> This doc remains as historical reference for the submission path and as the
+> playbook for future major-version submissions. Most "pending" items in
+> Section 0 are now resolved (the app shipped — by definition the blockers
+> cleared). The smoke-test checklist (§5) and rejection-prevention list (§7)
+> are still the right reference for the next release cycle.
+
 Single source-of-truth for taking Caddie AI from "running in Simulator" to
 "approved on the App Store." Pairs with `CUTOVER.md` (which covers the
 dev-Supabase → client-Supabase migration that happens at production launch).
 
-This doc covers everything from blocking prereqs through Apple review to
-post-approval release. Tick items as they land; don't skip the smoke test
-section before submitting.
-
 Bundle ID: **`com.caddieaiapp.app`**
-Target Apple Developer Team: **Parker James Sundell** (currently Individual
-enrollment — see _Manual signing workaround_ below)
+Target Apple Developer Team: **Parker James Sundell** (Individual enrollment
+— see _Manual signing workaround_ below; was working through v1.1.1 launch,
+Organization conversion still nice-to-have but not blocking)
 
 ---
 

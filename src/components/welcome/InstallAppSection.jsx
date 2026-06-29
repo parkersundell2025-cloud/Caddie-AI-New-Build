@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { APP_STORE_URL } from '@/lib/shareConfig';
 
 const iphoneSteps = [
   'Open caddieaiapp.com in Safari',
@@ -91,8 +92,8 @@ const btnStyle = {
   border: '1px solid rgba(168,213,162,0.3)',
   color: '#f9f9f7',
   borderRadius: '12px',
-  padding: '16px 32px',
-  fontSize: '15px',
+  padding: '14px 28px',
+  fontSize: '14px',
   fontWeight: '600',
   cursor: 'pointer',
   transition: 'all 0.2s',
@@ -118,11 +119,38 @@ export default function InstallAppSection() {
           className="text-3xl sm:text-4xl font-black"
           style={{ fontFamily: 'Fraunces, serif', color: '#f9f9f7' }}
         >
-          Install Caddie AI on your phone
+          Get the Caddie AI app
         </h2>
         <p className="text-base text-white/70 max-w-xl mx-auto leading-relaxed">
-          Add Caddie AI to your home screen so it launches like a native app — full screen, no browser bars, available with one tap.
+          Download from the App Store for the best experience — full-screen, native, with push notifications.
         </p>
+
+        <div className="flex flex-col items-center gap-3 pt-2">
+          <a
+            href={APP_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block transition-transform active:scale-95 hover:scale-105"
+            aria-label="Download Caddie AI on the App Store"
+          >
+            <img
+              src="/images/welcome/app-store-badge.svg"
+              alt="Download on the App Store"
+              style={{ height: '56px', width: 'auto' }}
+            />
+          </a>
+          <p className="text-xs" style={{ color: 'rgba(249,249,247,0.5)' }}>
+            Android coming soon
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4 max-w-md mx-auto pt-6">
+          <div className="flex-1 h-px" style={{ backgroundColor: 'rgba(249,249,247,0.15)' }} />
+          <span className="text-xs uppercase tracking-widest" style={{ color: 'rgba(249,249,247,0.5)' }}>
+            or install as a web app
+          </span>
+          <div className="flex-1 h-px" style={{ backgroundColor: 'rgba(249,249,247,0.15)' }} />
+        </div>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <button style={btnStyle} onClick={() => setModal('iphone')}>

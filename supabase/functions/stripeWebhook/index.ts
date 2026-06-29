@@ -122,7 +122,12 @@ Deno.serve(async (req) => {
 
     console.log(`[stripeWebhook] received ${event.type} id=${event.id}`);
 
-    if (event.type !== 'customer.subscription.updated' && event.type !== 'customer.subscription.deleted') {
+    const HANDLED_EVENTS = new Set([
+      'customer.subscription.created',
+      'customer.subscription.updated',
+      'customer.subscription.deleted',
+    ]);
+    if (!HANDLED_EVENTS.has(event.type)) {
       // Other event types ack but no-op. Stripe won't retry on 2xx.
       return json({ success: true, message: `Event ${event.type} acknowledged (no-op)` });
     }
@@ -134,20 +139,53 @@ Deno.serve(async (req) => {
       return json({ error: 'Missing customer id' }, 400);
     }
 
-    // Find the user_profile row by stripe_customer_id. Multiple users
-    // shouldn't share a Stripe customer; if more than one row matches,
-    // log it and update all (defensive).
+    // Find the user_profile row by stripe_customer_id. For brand-new
+    // subscriptions (customer.subscription.created), the profile may not
+    // have stripe_customer_id yet because completeStripeCheckout writes
+    // that asynchronously from the success page — and webhooks frequently
+    // beat the success page to the DB. Fall back to looking up by Stripe
+    // customer email so we can still claim and update the right profile.
     const db = serviceClient();
-    const { data: profiles, error: lookupErr } = await db
-      .from('user_profile')
-      .select('id, user_email, subscription_status, subscription_plan')
-      .eq('stripe_customer_id', customerId);
-    if (lookupErr) {
-      console.error('[stripeWebhook] profile lookup failed:', lookupErr.message);
-      return json({ error: 'Profile lookup failed', detail: lookupErr.message }, 500);
+    let profiles: { id: string; user_email: string; subscription_status: string; subscription_plan: string }[] | null = null;
+    {
+      const { data, error: lookupErr } = await db
+        .from('user_profile')
+        .select('id, user_email, subscription_status, subscription_plan')
+        .eq('stripe_customer_id', customerId);
+      if (lookupErr) {
+        console.error('[stripeWebhook] profile lookup failed:', lookupErr.message);
+        return json({ error: 'Profile lookup failed', detail: lookupErr.message }, 500);
+      }
+      profiles = data;
     }
     if (!profiles || profiles.length === 0) {
-      console.warn(`[stripeWebhook] no user_profile for stripe_customer_id=${customerId} — event ${event.type} dropped`);
+      // Fallback for created events: resolve the customer's email from
+      // Stripe, then match user_profile by that email. Lowercased to match
+      // the normalize_user_email_trigger.
+      try {
+        const customer = await stripe().customers.retrieve(customerId);
+        const customerEmail =
+          typeof customer === 'object' && !('deleted' in customer) && customer.email
+            ? customer.email.toLowerCase().trim()
+            : null;
+        if (customerEmail) {
+          const { data: byEmail, error: emailLookupErr } = await db
+            .from('user_profile')
+            .select('id, user_email, subscription_status, subscription_plan')
+            .eq('user_email', customerEmail);
+          if (emailLookupErr) {
+            console.error('[stripeWebhook] email fallback lookup failed:', emailLookupErr.message);
+          } else if (byEmail && byEmail.length > 0) {
+            profiles = byEmail;
+            console.log(`[stripeWebhook] resolved customer=${customerId} to user_email=${customerEmail} via fallback`);
+          }
+        }
+      } catch (e) {
+        console.warn(`[stripeWebhook] customers.retrieve(${customerId}) failed for email fallback:`, (e as Error).message);
+      }
+    }
+    if (!profiles || profiles.length === 0) {
+      console.warn(`[stripeWebhook] no user_profile for stripe_customer_id=${customerId} (and no email match) — event ${event.type} dropped`);
       // Ack so Stripe doesn't retry forever for an orphan customer.
       return json({ success: true, message: 'No profile for customer; skipped' });
     }
@@ -168,16 +206,19 @@ Deno.serve(async (req) => {
       // Final cancellation — sub fully ended.
       updates = { subscription_status: 'expired' };
     } else {
-      // customer.subscription.updated — plan change, status change, etc.
-      // cancel_at_period_end == true means user requested cancellation but
-      // is still in their paid period; map to 'cancelling' to match the
-      // existing revenueCatWebhook behavior.
+      // customer.subscription.created / .updated — new sub, plan change,
+      // status change. cancel_at_period_end == true means user requested
+      // cancellation but is still in their paid period; map to 'cancelling'
+      // to match the existing revenueCatWebhook behavior. For .created we
+      // also stamp stripe_customer_id since the profile may not have it yet
+      // (completeStripeCheckout races us).
       if (sub.cancel_at_period_end) {
         updates = { subscription_status: 'cancelling', subscription_plan: plan, stripe_subscription_id: sub.id };
       } else {
         updates = {
           subscription_status: mapStatus(sub.status, plan),
           subscription_plan: plan,
+          stripe_customer_id: customerId,
           stripe_subscription_id: sub.id,
           subscription_source: 'stripe',
         };

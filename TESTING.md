@@ -565,3 +565,33 @@ See `SUBMISSION_CHECKLIST.md` for the comprehensive list with checkboxes.
 - **Service-role JWT rotation** — was shared in the testing session to drive admin-API operations. Rotate via Supabase dashboard → Project Settings → API → Reset on `service_role` when testing completes.
 - **Resend API key rotation** — Parker's `re_Ubn9njY5...` key was shared by email and lives in Supabase SMTP config. Worth rotating before cutover (line item in `CUTOVER.md`).
 - **Capacitor Android workstream** — see scope. Phase 4. Once iOS is submitted, add Android platform: `npx cap add android`, register `caddieai://` scheme in `AndroidManifest.xml`, wire FCM for push delivery (Android side of the same trigger), submit to Play Store.
+
+### Phase 4 — iOS App Store launch (2026-06-22)
+
+iOS app is **live on the App Store** as of 2026-06-22. Current version 1.1.1.
+
+- **App Store ID:** `6776209508`
+- **Public URL:** https://apps.apple.com/app/id6776209508
+- **Listing name:** "Caddie AI: Golf Coach"
+- **Distribution path:** the Manual signing workaround (Parker's Distribution
+  Cert + Provisioning Profile, imported locally) carried the build through
+  TestFlight → App Review → release. Apple Developer Program Organization
+  conversion was not required for launch.
+
+Most of the pending items from §549–559 above were resolved between 2026-06-03
+and the 2026-06-22 release (APNs key, Apple Service ID, RC iOS key, designer
+assets, App Store metadata, etc.). `SUBMISSION_CHECKLIST.md` has a status
+banner at the top reflecting this.
+
+### Phase 4 follow-ups (2026-06-29)
+
+- **App Store badge on the marketing site** — added to `HeroSection` and
+  reworked `InstallAppSection` so the "Download on the App Store" badge is
+  the primary install CTA on https://caddieaiapp.com. PWA install kept as
+  the secondary path (still relevant for Android until Play Store launches).
+  `APP_STORE_URL` constant in `src/lib/shareConfig.js` flipped from the
+  placeholder to the real App Store URL — also picked up by `shareCard.jsx`.
+- **Android workstream kicked off** — Parker asked to create the Google Play
+  Console (D-U-N-S in hand) and Firebase project under his identity, invite
+  silexdev as admin/editor (same arrangement as iOS — see
+  `project-android-accounts-parker-owned` memory note).
