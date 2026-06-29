@@ -177,17 +177,18 @@ export default function SubscribeNow() {
     }
 
     try {
-      const { customerInfo } = await purchasePackage(pkg);
-      // RC webhook updates user_profile asynchronously. The customerInfo
-      // returned right here is RC's authoritative entitlement state — if it
-      // shows an active entitlement, we can skip /checkout/success polling
-      // and go straight to /home; otherwise we land on the polling page that
-      // waits for the webhook to write subscription_status.
-      if (hasAnyActiveEntitlement(customerInfo)) {
-        navigate('/home', { replace: true });
-      } else {
-        navigate('/checkout/success', { replace: true });
-      }
+      await purchasePackage(pkg);
+      // ALWAYS route through /checkout/success after IAP, even when RC's
+      // customerInfo already shows the entitlement. Why: /home is wrapped in
+      // SubscriptionGate which reads subscription_status from
+      // user_profile in Supabase — NOT RC's customerInfo. user_profile only
+      // updates when the RC webhook lands (typically 1–5s after purchase),
+      // so optimistic navigation to /home loses the race against the
+      // webhook in the common case and bounces the user back to
+      // /subscribe-now. The dedicated /checkout/success page polls
+      // user_profile and waits for the webhook to land before forwarding
+      // to /home — eliminating the bounce entirely.
+      navigate('/checkout/success', { replace: true });
     } catch (err) {
       // RC throws PurchasesError on user-cancel — swallow silently. Surface
       // anything else (network, billing, App Store unavailable) to the UI.

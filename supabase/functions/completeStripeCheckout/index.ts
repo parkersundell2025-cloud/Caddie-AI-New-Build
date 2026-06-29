@@ -108,6 +108,24 @@ Deno.serve(async (req: Request) => {
       return json({ success: true, updated: {}, message: 'No customer on session' });
     }
 
+    // Derive plan + trial state from the expanded subscription. Used for
+    // both create and update paths so the user lands in the right state
+    // without depending on the RC webhook (which is unreliable for
+    // Stripe-origin INITIAL_PURCHASE events). Mirrors the
+    // revenueCatWebhook INITIAL_PURCHASE handler so both code paths
+    // converge on identical writes.
+    const STRIPE_PRICE_BASIC = 'price_1TOfvE2ZJRGxxJxRqXKmOVuf';
+    const STRIPE_PRICE_PRO   = 'price_1TOfwL2ZJRGxxJxRc7SiSjSm';
+    const subObj = typeof session.subscription === 'object' ? session.subscription : null;
+    const lineItemPriceId =
+      subObj?.items?.data?.[0]?.price?.id ?? (session.metadata?.plan === 'pro' ? STRIPE_PRICE_PRO : STRIPE_PRICE_BASIC);
+    const plan: 'basic' | 'pro' = lineItemPriceId === STRIPE_PRICE_PRO ? 'pro' : 'basic';
+    const nowMs = Date.now();
+    const trialEndMs = subObj?.trial_end ? subObj.trial_end * 1000 : null;
+    const isInTrial = trialEndMs !== null && trialEndMs > nowMs;
+    const trialEndISO = trialEndMs ? new Date(trialEndMs).toISOString().split('T')[0] : null;
+    const todayISO = new Date().toISOString().split('T')[0];
+
     // Build the patch. Always set subscription_source='stripe' since the
     // mere fact that we got here through a Stripe Checkout Session is
     // proof enough — we don't need to trust RC's event.store for this.
@@ -116,8 +134,21 @@ Deno.serve(async (req: Request) => {
     const updates: Record<string, unknown> = {
       stripe_customer_id: customerId,
       subscription_source: 'stripe',
+      // Flip subscription_status + plan directly. Previously this was left
+      // to revenueCatWebhook, but RC's Stripe Web Billing integration drops
+      // events for portal-initiated changes AND for INITIAL_PURCHASE on
+      // existing customers, trapping the user on /subscribe-now → /checkout/
+      // success → /subscribe-now. Writing it here makes the post-payment
+      // unlock deterministic regardless of RC's behavior. If RC also writes
+      // (later), it lands on the same value so no conflict.
+      subscription_status: isInTrial ? 'trial' : plan,
+      subscription_plan: plan,
     };
     if (subscriptionId) updates.stripe_subscription_id = subscriptionId;
+    if (isInTrial && trialEndISO) {
+      updates.trial_start_date = todayISO;
+      updates.trial_end_date = trialEndISO;
+    }
 
     // Match by user_email. user_profile.id is a random text UUID assigned by
     // the table default — it is NOT the same as auth.users.id. The
@@ -145,7 +176,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (existing && existing.length > 0) {
-      // Existing profile path — just patch the Stripe identity fields.
+      // Existing profile path — patch Stripe identity AND subscription state
+      // so the post-payment access flip is deterministic.
       const { error: updErr } = await db
         .from('user_profile')
         .update(updates)
@@ -159,28 +191,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // No profile — create one with everything we know from Stripe.
+    // plan / trial fields already derived above for the existing-profile
+    // path; reused here verbatim.
     //
-    // Derive plan from the subscription's line item price ID. The two
-    // known live prices (basic $14.99, pro $28.99) are pinned below; the
-    // env-var price IDs createStripeCheckoutSession uses must match
-    // whichever Stripe mode is active. Fallback when unknown: 'basic'
-    // (least surprising — never accidentally grants pro).
-    const STRIPE_PRICE_BASIC = 'price_1TOfvE2ZJRGxxJxRqXKmOVuf';
-    const STRIPE_PRICE_PRO   = 'price_1TOfwL2ZJRGxxJxRc7SiSjSm';
-    const subObj = typeof session.subscription === 'object' ? session.subscription : null;
-    const lineItemPriceId =
-      subObj?.items?.data?.[0]?.price?.id ?? (session.metadata?.plan === 'pro' ? STRIPE_PRICE_PRO : STRIPE_PRICE_BASIC);
-    const plan: 'basic' | 'pro' = lineItemPriceId === STRIPE_PRICE_PRO ? 'pro' : 'basic';
-
-    // Trial detection: Stripe surfaces trial_end as a unix timestamp on the
-    // subscription. If trial_end is in the future, status = 'trial';
-    // otherwise the user is already on the paid plan (no trial offered).
-    const nowMs = Date.now();
-    const trialEndMs = subObj?.trial_end ? subObj.trial_end * 1000 : null;
-    const isInTrial = trialEndMs !== null && trialEndMs > nowMs;
-    const trialEndISO = trialEndMs ? new Date(trialEndMs).toISOString().split('T')[0] : null;
-    const todayISO = new Date().toISOString().split('T')[0];
-
     // first_name: prefer the auth user_metadata.name if present (Google +
     // Apple-with-name share this), then session.customer_details.name,
     // then the local part of the email as a last-resort.

@@ -69,7 +69,7 @@ export default function InstallModal({ onClose, onProceed }) {
 
           {/* Subtext */}
           <p className="text-sm leading-relaxed mb-6" style={{ color: 'rgba(249,249,247,0.65)' }}>
-            Add Caddie AI to your home screen in seconds — no app store needed. Then sign up inside the app.
+            Add Caddie AI to your home screen in seconds, then sign up inside the app.
           </p>
 
           {/* Tabs */}

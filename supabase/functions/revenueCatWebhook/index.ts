@@ -426,6 +426,68 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Fourth fallback: iterate `aliases`. RC aliases all of a user's IDs
+    // together when iOS receipts span multiple Caddie accounts on the same
+    // device (e.g., the device had an older account, then the user signed
+    // up fresh; Apple's receipt is associated with the ORIGINAL account, so
+    // RC's webhook fires with that original UUID even though the user's
+    // current Supabase session is on a new UUID). The aliases array carries
+    // both UUIDs; try each one as both a profile-lookup key and an
+    // auth.users key until something resolves.
+    if (!profile && aliases.length > 0) {
+      for (const alias of aliases) {
+        if (typeof alias !== 'string' || !alias) continue;
+        if (alias === appUserId) continue; // already tried above
+
+        // Treat email-shaped aliases as profile lookups directly.
+        if (alias.includes('@')) {
+          const aliasEmail = alias.toLowerCase().trim();
+          const { data } = await db
+            .from('user_profile')
+            .select('*')
+            .eq('user_email', aliasEmail);
+          if (data && data[0]) {
+            profile = data[0];
+            userEmail = aliasEmail;
+            console.log(`[revenueCatWebhook] resolved via alias email ${aliasEmail}`);
+            break;
+          }
+          continue;
+        }
+
+        // Treat UUID-shaped aliases as revenuecat_app_user_id OR auth.users.id.
+        const aliasIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
+        if (!aliasIsUuid) continue;
+
+        // Try revenuecat_app_user_id first (cheaper).
+        const { data: byRcId } = await db
+          .from('user_profile')
+          .select('*')
+          .eq('revenuecat_app_user_id', alias);
+        if (byRcId && byRcId[0]) {
+          profile = byRcId[0];
+          console.log(`[revenueCatWebhook] resolved via alias rc_app_user_id ${alias}`);
+          break;
+        }
+
+        // Then auth.users.id → email → profile.
+        const { data: authData, error: authErr } = await db.auth.admin.getUserById(alias);
+        if (!authErr && authData?.user?.email) {
+          const aliasEmail = authData.user.email.toLowerCase().trim();
+          const { data: byEmail } = await db
+            .from('user_profile')
+            .select('*')
+            .eq('user_email', aliasEmail);
+          if (byEmail && byEmail[0]) {
+            profile = byEmail[0];
+            userEmail = aliasEmail;
+            console.log(`[revenueCatWebhook] resolved alias UUID ${alias} to email ${aliasEmail} via auth.admin`);
+            break;
+          }
+        }
+      }
+    }
+
     // No profile path — create only for iOS INITIAL_PURCHASE / TRIAL_STARTED.
     // For Stripe (web) events, profile creation is owned by the Stripe
     // checkout flow (createStripeCheckoutSession + a Supabase auth session).
