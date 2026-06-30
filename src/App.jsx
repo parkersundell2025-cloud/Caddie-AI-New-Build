@@ -79,13 +79,13 @@ function RootRoute() {
     if (isLoadingAuth) return;
     const isAuthenticated = !authError || authError.type !== 'auth_required';
     if (!isAuthenticated) {
-      console.log('[RootRoute] Not authenticated, redirecting to /signin');
-      setDestination('/signin');
+      console.log('[RootRoute] Not authenticated, redirecting to /welcome');
+      setDestination('/welcome');
       return;
     }
     console.log('[RootRoute] GATE CHECK STARTED for authenticated user');
     getCurrentUser().then(user => {
-      if (!user) { setDestination('/signin'); return; }
+      if (!user) { setDestination('/welcome'); return; }
       console.log('[RootRoute] Current user:', user);
       unwrap(
         supabase.from('user_profile').select('*').eq('user_email', user.email)
