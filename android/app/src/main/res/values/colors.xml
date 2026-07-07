@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand green from the app icon; used as the notification accent -->
+    <color name="caddie_green">#40684B</color>
+</resources>

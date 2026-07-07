@@ -41,8 +41,14 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 // RevenueCat App identifiers (from `list-apps` on project projfe7054d8).
 // Used to distinguish iOS App Store events from Stripe Web Billing events.
 const IOS_APP_ID = 'app63f79b5121';        // Caddie AI : Golf Coach (App Store)
-const STRIPE_APP_ID = 'app4182f2d023';     // Caddie AI : Golf Coach (Stripe) — referenced for clarity, not used in branching
+const PLAY_APP_ID = 'app72dab96914';       // Caddie AI : Golf Coach (Play Store)
+const STRIPE_APP_ID = 'app4182f2d023';     // Caddie AI : Golf Coach (Stripe) — profile creation owned by the Stripe checkout flow, so we never create here
 void STRIPE_APP_ID;
+
+// Native-store app IDs whose first-purchase events must CREATE the profile
+// (no server-side checkout flow does it for them). Stripe is intentionally
+// excluded — createStripeCheckoutSession owns Stripe profile creation.
+const NATIVE_STORE_APP_IDS = new Set([IOS_APP_ID, PLAY_APP_ID]);
 
 // ── Plan derivation ─────────────────────────────────────────────────────────
 // Strict explicit map first — DO NOT add substring fallbacks for known IDs.
@@ -54,6 +60,12 @@ const PLAN_FROM_PRODUCT: Record<string, 'basic' | 'pro'> = {
   // even after deletion, so we couldn't reuse them on the new bundle.
   'com.caddieaiapp.basic.monthly': 'basic',
   'com.caddieaiapp.pro.monthly':   'pro',
+  // Play Store — RC addresses Google products as subscriptionId:basePlanId;
+  // bare subscription IDs included in case an event omits the base plan.
+  'caddie_basic:monthly': 'basic',
+  'caddie_pro:monthly':   'pro',
+  'caddie_basic':         'basic',
+  'caddie_pro':           'pro',
   // App Store — Base44-era IDs kept for back-compat with any in-flight
   // RC events from before the swap. Safe to keep — they will simply never
   // appear again once the old app's RC entry is gone.
@@ -73,6 +85,8 @@ const PLAN_FROM_PRODUCT: Record<string, 'basic' | 'pro'> = {
   'prod59d78fbb87':      'pro',    // Stripe prod_UNQnQZbZ4pOtHo
   'prodcff849834f':      'basic',  // iOS legacy month1_caddie
   'prodb8a8b72ce9':      'pro',    // iOS legacy month1_caddiePro
+  'prod520db6f5d8':      'basic',  // Play caddie_basic:monthly
+  'prode521f73efb':      'pro',    // Play caddie_pro:monthly
 };
 
 // Stripe Price IDs (fallback if RC ever sends a price instead of a product).
@@ -488,10 +502,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // No profile path — create only for iOS INITIAL_PURCHASE / TRIAL_STARTED.
-    // For Stripe (web) events, profile creation is owned by the Stripe
-    // checkout flow (createStripeCheckoutSession + a Supabase auth session).
-    // Creating here would race with that flow and produce duplicate profiles.
+    // No profile path — create for native-store (iOS + Play) INITIAL_PURCHASE
+    // / TRIAL_STARTED. For Stripe (web) events, profile creation is owned by
+    // the Stripe checkout flow (createStripeCheckoutSession + a Supabase auth
+    // session); creating here would race it and produce duplicate profiles.
+    // A brand-new Android/iOS subscriber has no profile yet (they subscribe
+    // from /subscribe-now before onboarding), so this path is the ONLY place
+    // their profile gets created — skipping it strands a paying user.
     if (!profile) {
       const isCreationEvent =
         eventType === 'INITIAL_PURCHASE' || eventType === 'TRIAL_STARTED';
@@ -499,15 +516,15 @@ Deno.serve(async (req: Request) => {
         console.warn(`[revenueCatWebhook] No profile for ${userEmail}, ${eventType} skipped`);
         return json({ success: true, message: 'No profile found, skipped' });
       }
-      if (event.app_id !== IOS_APP_ID) {
+      if (!NATIVE_STORE_APP_IDS.has(event.app_id)) {
         console.warn(
-          `[revenueCatWebhook] No profile for ${userEmail}, app=${event.app_id} (not iOS) — skipped to avoid duplicating Stripe-side creation`,
+          `[revenueCatWebhook] No profile for ${userEmail}, app=${event.app_id} (not a native store) — skipped to avoid duplicating Stripe-side creation`,
         );
-        return json({ success: true, message: 'Non-iOS creation event skipped' });
+        return json({ success: true, message: 'Non-native-store creation event skipped' });
       }
       if (!userEmail) {
-        console.error(`[revenueCatWebhook] iOS creation event with no resolvable email`);
-        return json({ error: 'Missing email for iOS creation' }, 400);
+        console.error(`[revenueCatWebhook] native-store creation event with no resolvable email`);
+        return json({ error: 'Missing email for native-store creation' }, 400);
       }
 
       const plan = getPlan(productId);
@@ -547,7 +564,7 @@ Deno.serve(async (req: Request) => {
         console.error('[revenueCatWebhook] profile create failed:', insErr.message);
         return json({ error: 'Profile create failed', detail: insErr.message }, 500);
       }
-      console.log(`[revenueCatWebhook] Created profile ${created.id} for iOS subscriber ${userEmail}`);
+      console.log(`[revenueCatWebhook] Created profile ${created.id} for native-store subscriber ${userEmail} (app=${event.app_id})`);
 
       // Affiliate commission for the new-profile path. Skip trials — paid
       // commission only on TRIAL_CONVERTED (a separate later event).

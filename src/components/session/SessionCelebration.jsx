@@ -176,8 +176,8 @@ export default function SessionCelebration({ ratings, session, user, profile, le
       className="fixed inset-0 z-[70] flex flex-col overflow-y-auto"
       style={{
         background: 'radial-gradient(ellipse at 50% 30%, #1a4d2e 0%, #0d1f16 60%)',
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)',
+        paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))',
+        paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 1.5rem)',
       }}
     >
       {/* Confetti */}

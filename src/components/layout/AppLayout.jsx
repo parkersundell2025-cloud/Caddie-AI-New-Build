@@ -43,11 +43,11 @@ export default function AppLayout() {
   return (
     <div
       className="h-[100dvh] bg-background max-w-lg mx-auto relative flex flex-col"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      style={{ paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}
     >
       {/* Global Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border flex items-center justify-between px-4 h-14 flex-shrink-0"
-        style={{ top: 'env(safe-area-inset-top)' }}
+        style={{ top: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}
       >
         {isSubScreen ? (
           <>
@@ -79,7 +79,7 @@ export default function AppLayout() {
         )}
       </header>
 
-      <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}>
+      <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 4rem)' }}>
         <Outlet />
       </main>
 

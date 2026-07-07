@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { useAuth } from '@/lib/AuthContext';
 import Logo from '@/components/layout/Logo';
-import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
+import { isNative, getPlatform, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 import {
   getOfferings,
   purchasePackage,
@@ -163,15 +163,22 @@ export default function SubscribeNow() {
     setCheckoutLoading(plan);
     setCheckoutError('');
 
-    // If RC isn't ready (no API key set yet, or no offering configured in the
-    // dashboard, or network failure), fall back to the Phase 2 Stripe-via-
-    // Browser-plugin flow so the app stays functional during the rollout.
-    // App Store 3.1.1 risk for digital subs, but tolerable during dev/TestFlight
-    // and trivially flipped once the RC dashboard is live.
+    // If RC can't produce a purchasable package (key missing, offering not
+    // configured, store products not yet propagated, network failure) the
+    // handling differs by store:
+    //   - Android: Google Play policy REQUIRES Play Billing for digital subs.
+    //     Falling back to the Stripe web checkout would be a policy violation,
+    //     so we surface a retryable error instead and never open the browser.
+    //   - iOS: the App Store tolerated the Stripe fallback during the RC
+    //     rollout (see 3.1.1 note), so it's preserved for that platform only.
     const offering = await getOfferings();
     const pkg = offering?.availablePackages?.find((p) => planForPackage(p) === plan);
     if (!pkg) {
       setCheckoutLoading(null);
+      if (getPlatform() === 'android') {
+        setCheckoutError('The store is still setting up this subscription. Please try again in a few minutes.');
+        return;
+      }
       startCheckout(plan);
       return;
     }
@@ -228,8 +235,14 @@ export default function SubscribeNow() {
     );
   }
 
-  // ── iOS: IAP flow ──────────────────────────────────────────────────
-  if (isIOS) {
+  // ── Native app (iOS + Android): store IAP flow via RevenueCat ───────
+  // Must be isNative(), NOT isIOS: the old iPad/iPhone user-agent check
+  // excluded Android, so the Android app fell through to the web/Stripe
+  // layout below and never reached the native Play Billing path — a Google
+  // Play policy violation and the reason Android purchases opened Chrome.
+  // handleIOSPurchase works for both stores (RC purchasePackage is
+  // cross-platform); mobile Safari / desktop web still get the web layout.
+  if (isNative()) {
     return (
       <div className="min-h-screen px-6 py-10 flex flex-col items-center" style={{ backgroundColor: '#1a2e1a', color: '#f9f9f7' }}>
         <div className="w-full max-w-lg mx-auto space-y-10">

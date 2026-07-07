@@ -60,7 +60,7 @@ export default function SessionLogger({ session, onClose, onSubmit }) {
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-6 space-y-5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
+        <div className="flex-1 overflow-y-auto px-6 space-y-5" style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 6rem)' }}>
           {/* Drills */}
           <div className="space-y-5">
             {drills.map((drill, i) => (

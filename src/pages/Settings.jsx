@@ -113,7 +113,7 @@ export default function Settings() {
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 26 }}
               className="w-full max-w-lg mx-auto bg-background rounded-t-3xl px-6 pt-6 pb-10 space-y-5"
-              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 2rem)' }}
+              style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 2rem)' }}
             >
               <div className="text-center space-y-2">
                 <h3 className="text-lg font-black text-foreground">Sign Out?</h3>

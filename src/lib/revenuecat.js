@@ -1,5 +1,5 @@
 import { Purchases } from '@revenuecat/purchases-capacitor';
-import { isNative } from '@/lib/platform';
+import { isNative, getPlatform } from '@/lib/platform';
 
 // RevenueCat wrapper. Every export is safe to call on web (no-ops cleanly);
 // only fires real SDK calls when running inside Capacitor.
@@ -15,6 +15,11 @@ import { isNative } from '@/lib/platform';
 // identity sync from the iOS app.
 
 const IOS_API_KEY = import.meta.env.VITE_REVENUECAT_IOS_KEY;
+const ANDROID_API_KEY = import.meta.env.VITE_REVENUECAT_ANDROID_KEY;
+
+function platformApiKey() {
+  return getPlatform() === 'android' ? ANDROID_API_KEY : IOS_API_KEY;
+}
 
 let configured = false;
 let configurePromise = null;
@@ -25,13 +30,14 @@ export async function configureRevenueCat() {
   if (!isNative()) return false;
   if (configured) return true;
   if (configurePromise) return configurePromise;
-  if (!IOS_API_KEY) {
-    console.warn('[revenuecat] VITE_REVENUECAT_IOS_KEY not set — IAP disabled.');
+  const apiKey = platformApiKey();
+  if (!apiKey) {
+    console.warn(`[revenuecat] RC API key for ${getPlatform()} not set — IAP disabled.`);
     return false;
   }
   configurePromise = (async () => {
     try {
-      await Purchases.configure({ apiKey: IOS_API_KEY });
+      await Purchases.configure({ apiKey });
       configured = true;
       return true;
     } catch (e) {
