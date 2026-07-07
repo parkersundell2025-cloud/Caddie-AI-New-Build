@@ -69,7 +69,7 @@ export default function BottomNav() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-15 bg-background flex justify-between items-center" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom))' }}>
+    <nav className="fixed bottom-0 left-0 right-0 h-15 bg-background flex justify-between items-center" style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)))' }}>
       {TABS.map(({ label, icon: Icon, path, dataAttr }) => {
         const active = isActive(path);
         return (

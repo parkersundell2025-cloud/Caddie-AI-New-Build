@@ -132,7 +132,7 @@ function PhoneMockup() {
 export default function HeroSection() {
   return (
     <div
-      className="relative min-h-screen pt-24 md:pt-20 px-6 md:px-12 flex flex-col items-center justify-center"
+      className="relative min-h-screen pt-[calc(6rem+var(--sat))] md:pt-[calc(5rem+var(--sat))] px-6 md:px-12 flex flex-col items-center justify-center"
       style={{
         backgroundImage: 'url(/images/welcome/hero-bg.png)',
         backgroundSize: 'cover',

@@ -1,0 +1,6 @@
+# Copy to android/key.properties (gitignored) and fill in the real values.
+# The keystore itself lives OUTSIDE the repo — see RELEASE.md.
+storeFile=/Users/tonyt/keystores/caddieai-upload.jks
+storePassword=CHANGE_ME
+keyAlias=caddieai-upload
+keyPassword=CHANGE_ME

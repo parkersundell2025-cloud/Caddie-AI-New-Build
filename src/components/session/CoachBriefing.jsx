@@ -89,7 +89,7 @@ export default function CoachBriefing({ session, profile, drillRatings, onStart,
         className="w-full max-w-lg mx-auto rounded-t-3xl p-6 space-y-5"
         style={{
           backgroundColor: '#0d1f16',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)',
+          paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 1.5rem)',
         }}
       >
         {/* Header */}

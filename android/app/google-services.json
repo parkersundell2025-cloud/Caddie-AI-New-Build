@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "341390042717",
+    "project_id": "caddie-ai-d2c4a",
+    "storage_bucket": "caddie-ai-d2c4a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:341390042717:android:702f0b656cc6d59b418fb4",
+        "android_client_info": {
+          "package_name": "com.caddieaiapp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAcn7kOraSdqlFBrLml3IfdRvHUbo67LQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

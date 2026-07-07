@@ -1,19 +1,21 @@
 // supabase/functions/sendPushNotification/index.ts
 //
-// Sends an Apple Push Notification to every iOS device_token row registered
-// for the given user. Service-role-gated — only callable from other edge
-// functions, Postgres triggers (via pg_net), or admin tooling carrying the
-// SUPABASE_SERVICE_ROLE_KEY in the Authorization header.
+// Sends a push notification to every device_token row registered for the
+// given user — iOS via APNs, Android via FCM HTTP v1. Service-role-gated —
+// only callable from other edge functions, Postgres triggers (via pg_net),
+// or admin tooling carrying the SUPABASE_SERVICE_ROLE_KEY in the
+// Authorization header.
 //
 // Flow:
 //   1. Verify Authorization matches the service-role key (string compare).
-//   2. Look up active device_token rows for the target user (iOS-only for now;
-//      Android via FCM will share the same table once we wire it).
-//   3. Build an APNs JWT (ES256 over the .p8 PKCS#8 key). Cached up to ~50min
-//      across invocations within the same worker, then re-signed.
-//   4. POST to https://api.push.apple.com/3/device/{token} (sandbox in dev).
-//   5. On 410 Gone, delete the token row — Apple's signal that the install
-//      is gone and that token will never deliver again.
+//   2. Look up active device_token rows for the target user, split by platform.
+//   3. iOS: build an APNs JWT (ES256 over the .p8 PKCS#8 key), POST to
+//      https://api.push.apple.com/3/device/{token} (sandbox in dev).
+//      Android: mint a Google OAuth2 access token (RS256 JWT-bearer grant
+//      from the Firebase service account), POST to the FCM v1 messages:send
+//      endpoint per token. Both credentials cached ~50min per worker.
+//   4. On APNs 410 Gone / FCM 404 UNREGISTERED, delete the token row — the
+//      store's signal that the install is gone and the token is dead.
 //
 // Secrets required (set with `supabase secrets set ...`):
 //   APNS_AUTH_KEY     — contents of the .p8 file, including BEGIN/END markers.
@@ -23,6 +25,11 @@
 //   APNS_USE_SANDBOX  — "true" while running TestFlight/dev builds; "false"
 //                       for the App Store production build. The same .p8 key
 //                       works for both endpoints; the topic + endpoint differ.
+//   FCM_SERVICE_ACCOUNT — full JSON of the Firebase service-account key
+//                       (Firebase console → Project settings → Service
+//                       accounts → Generate new private key). Missing secret
+//                       degrades gracefully: android tokens count as failed,
+//                       iOS unaffected.
 //
 // Caller body shape:
 //   {
@@ -48,6 +55,8 @@ const APNS_HOST = APNS_USE_SANDBOX ? 'api.sandbox.push.apple.com' : 'api.push.ap
 
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
+const FCM_SERVICE_ACCOUNT = Deno.env.get('FCM_SERVICE_ACCOUNT') ?? '';
+
 // ─── JWT caching ─────────────────────────────────────────────────────────────
 // APNs JWTs are valid for up to 1 hour. Re-using one across multiple sends
 // within the same worker avoids re-signing on every notification. Apple
@@ -72,19 +81,16 @@ function base64UrlEncode(input: string | Uint8Array): string {
   return raw.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-async function pemToCryptoKey(pem: string): Promise<CryptoKey> {
+async function pemToCryptoKey(
+  pem: string,
+  algorithm: EcKeyImportParams | RsaHashedImportParams = { name: 'ECDSA', namedCurve: 'P-256' },
+): Promise<CryptoKey> {
   const b64 = pem
     .replace(/-----BEGIN [^-]+-----/g, '')
     .replace(/-----END [^-]+-----/g, '')
     .replace(/\s+/g, '');
   const der = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  return crypto.subtle.importKey(
-    'pkcs8',
-    der,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign'],
-  );
+  return crypto.subtle.importKey('pkcs8', der, algorithm, false, ['sign']);
 }
 
 async function buildAPNsJWT(): Promise<string> {
@@ -113,6 +119,103 @@ async function buildAPNsJWT(): Promise<string> {
   cachedJWT = jwt;
   cachedJWTAt = now;
   return jwt;
+}
+
+// ─── FCM (Android) ───────────────────────────────────────────────────────────
+// Google OAuth2 access tokens are valid for 1h; same ~50min reuse policy as
+// the APNs JWT above.
+let cachedFCMToken: string | null = null;
+let cachedFCMTokenAt = 0;
+
+function fcmAccount(): { project_id: string; client_email: string; private_key: string } {
+  if (!FCM_SERVICE_ACCOUNT) throw new Error('FCM_SERVICE_ACCOUNT not configured');
+  const acct = JSON.parse(FCM_SERVICE_ACCOUNT);
+  if (!acct.project_id || !acct.client_email || !acct.private_key) {
+    throw new Error('FCM_SERVICE_ACCOUNT missing project_id/client_email/private_key');
+  }
+  return acct;
+}
+
+async function buildFCMAccessToken(): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedFCMToken && now - cachedFCMTokenAt < 50 * 60) return cachedFCMToken;
+
+  const acct = fcmAccount();
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: acct.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  };
+  const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
+
+  const key = await pemToCryptoKey(acct.private_key, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' });
+  const sig = new Uint8Array(
+    await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(signingInput)),
+  );
+  const assertion = `${signingInput}.${base64UrlEncode(sig)}`;
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Google OAuth token exchange failed (${res.status}): ${text}`);
+  }
+  const tokenJson = await res.json();
+  cachedFCMToken = tokenJson.access_token;
+  cachedFCMTokenAt = now;
+  return cachedFCMToken!;
+}
+
+async function sendToFCMToken(
+  token: string,
+  title: string,
+  bodyText: string,
+  customData: Record<string, unknown>,
+  accessToken: string,
+  projectId: string,
+): Promise<{ status: number; text: string }> {
+  // FCM v1 requires all data values to be strings.
+  const data: Record<string, string> = {};
+  for (const [k, v] of Object.entries(customData)) {
+    data[k] = typeof v === 'string' ? v : JSON.stringify(v);
+  }
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        'authorization': `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title, body: bodyText },
+          ...(Object.keys(data).length ? { data } : {}),
+          android: { priority: 'high' },
+        },
+      }),
+    },
+  );
+  const text = await res.text().catch(() => '');
+  return { status: res.status, text };
+}
+
+// FCM's "this token will never deliver again" signal: HTTP 404 with error
+// status UNREGISTERED (uninstall, token rotation). INVALID_ARGUMENT on a
+// well-formed request means a garbage token — also permanent.
+function isFCMTokenDead(status: number, text: string): boolean {
+  if (status === 404) return true;
+  return status === 400 && text.includes('INVALID_ARGUMENT') && text.includes('token');
 }
 
 // ─── Send a single notification ──────────────────────────────────────────────
@@ -184,22 +287,37 @@ Deno.serve(async (req: Request) => {
     const { data: tokens, error } = await db
       .from('device_token')
       .select('id, token, platform')
-      .eq('user_email', userEmail)
-      .eq('platform', 'ios');
+      .eq('user_email', userEmail);
     if (error) {
       console.error('[sendPushNotification] device_token lookup failed:', error.message);
       return json({ error: 'Failed to look up device tokens' }, 500);
     }
     if (!tokens || tokens.length === 0) {
-      return json({ sent: 0, failed: 0, deleted: 0, message: 'No iOS tokens for user' });
+      return json({ sent: 0, failed: 0, deleted: 0, message: 'No tokens for user' });
     }
+    const iosTokens = tokens.filter((t) => t.platform === 'ios');
+    const androidTokens = tokens.filter((t) => t.platform === 'android');
 
-    let jwt: string;
-    try {
-      jwt = await buildAPNsJWT();
-    } catch (e) {
-      console.error('[sendPushNotification] JWT build failed:', (e as Error).message);
-      return json({ error: 'APNs not configured' }, 500);
+    // Credentials are built lazily per platform so a user with only Android
+    // devices doesn't require APNs config and vice versa. A credential
+    // failure marks that platform's tokens failed but doesn't block the other.
+    let jwt: string | null = null;
+    if (iosTokens.length > 0) {
+      try {
+        jwt = await buildAPNsJWT();
+      } catch (e) {
+        console.error('[sendPushNotification] APNs JWT build failed:', (e as Error).message);
+      }
+    }
+    let fcmToken: string | null = null;
+    let fcmProjectId = '';
+    if (androidTokens.length > 0) {
+      try {
+        fcmToken = await buildFCMAccessToken();
+        fcmProjectId = fcmAccount().project_id;
+      } catch (e) {
+        console.error('[sendPushNotification] FCM access token build failed:', (e as Error).message);
+      }
     }
 
     // APNs payload — aps block is reserved; custom data sits at the top level
@@ -217,10 +335,22 @@ Deno.serve(async (req: Request) => {
     let failed = 0;
     let deleted = 0;
 
+    const dropDeadToken = async (id: string) => {
+      const { error: delErr } = await db.from('device_token').delete().eq('id', id);
+      if (delErr) {
+        console.warn('[sendPushNotification] failed to delete stale token:', delErr.message);
+      }
+      deleted += 1;
+    };
+
     // Send to all tokens in parallel. Each device is independent — one bad
     // token shouldn't block the rest.
-    await Promise.all(
-      tokens.map(async (row) => {
+    await Promise.all([
+      ...iosTokens.map(async (row) => {
+        if (!jwt) {
+          failed += 1;
+          return;
+        }
         try {
           const { status, text } = await sendToToken(row.token, apnsPayload, jwt);
           if (status === 200) {
@@ -230,11 +360,7 @@ Deno.serve(async (req: Request) => {
           if (status === 410) {
             // Token is dead per Apple — uninstall, OS reset, etc. Drop it so
             // we stop spending APNs quota and DB rows on it.
-            const { error: delErr } = await db.from('device_token').delete().eq('id', row.id);
-            if (delErr) {
-              console.warn('[sendPushNotification] failed to delete stale token:', delErr.message);
-            }
-            deleted += 1;
+            await dropDeadToken(row.id);
             return;
           }
           console.warn(
@@ -246,7 +372,33 @@ Deno.serve(async (req: Request) => {
           failed += 1;
         }
       }),
-    );
+      ...androidTokens.map(async (row) => {
+        if (!fcmToken) {
+          failed += 1;
+          return;
+        }
+        try {
+          const { status, text } = await sendToFCMToken(
+            row.token, title, bodyText, customData, fcmToken, fcmProjectId,
+          );
+          if (status === 200) {
+            sent += 1;
+            return;
+          }
+          if (isFCMTokenDead(status, text)) {
+            await dropDeadToken(row.id);
+            return;
+          }
+          console.warn(
+            `[sendPushNotification] FCM ${status} for token ${row.token.slice(0, 12)}...: ${text}`,
+          );
+          failed += 1;
+        } catch (e) {
+          console.warn('[sendPushNotification] FCM send threw:', (e as Error).message);
+          failed += 1;
+        }
+      }),
+    ]);
 
     return json({ sent, failed, deleted });
   } catch (e) {

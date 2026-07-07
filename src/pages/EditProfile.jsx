@@ -162,7 +162,7 @@ export default function EditProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-background" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-screen bg-background" style={{ paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}>
       {/* Header */}
       <div className="sticky top-0 bg-background border-b border-border z-40">
         <div className="px-5 py-4 flex items-center gap-3">

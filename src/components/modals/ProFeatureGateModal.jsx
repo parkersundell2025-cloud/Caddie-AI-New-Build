@@ -43,7 +43,7 @@ export default function ProFeatureGateModal({ visible, onDismiss, onRestoreSucce
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25 }}
             className="bg-background rounded-t-3xl w-full max-w-lg mx-auto px-6 pt-6 space-y-5"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 2rem)' }}
+            style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 2rem)' }}
           >
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-black text-foreground">Feature Locked</h2>

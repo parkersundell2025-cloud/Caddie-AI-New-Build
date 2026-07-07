@@ -6,6 +6,11 @@
 
 @layer base {
   :root {
+    /* Status-bar/home-indicator clearance, cross-platform: Capacitor 8
+       injects --safe-area-inset-* on Android (where env() is always 0);
+       iOS and web resolve through env(). */
+    --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+    --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
     --background: 48 20% 97.3%;
     --foreground: 0 0% 8%;
     --card: 0 0% 100%;

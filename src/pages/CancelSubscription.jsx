@@ -26,7 +26,7 @@ export default function CancelSubscription() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-screen bg-background flex flex-col" style={{ paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}>
       <div className="sticky top-0 bg-background border-b border-border z-40">
         <div className="px-5 py-4 flex items-center gap-3">
           <button onClick={() => navigate('/settings')} className="p-2">

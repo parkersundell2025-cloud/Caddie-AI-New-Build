@@ -106,7 +106,7 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
       exit={{ opacity: 0, y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
       className="fixed inset-0 z-[60] flex flex-col"
-      style={{ backgroundColor: '#0a1a0f', paddingTop: 'env(safe-area-inset-top)' }}
+      style={{ backgroundColor: '#0a1a0f', paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}
     >
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-4 flex-shrink-0">

@@ -78,14 +78,18 @@ function RootRoute() {
   useEffect(() => {
     if (isLoadingAuth) return;
     const isAuthenticated = !authError || authError.type !== 'auth_required';
+    // Signed-out landing differs by surface: the browser shows the marketing
+    // page (/welcome, with its App Store / web-app CTAs), but inside the native
+    // app the user already installed it — send them straight to sign-in.
+    const signedOutDest = isNative() ? '/signin' : '/welcome';
     if (!isAuthenticated) {
-      console.log('[RootRoute] Not authenticated, redirecting to /welcome');
-      setDestination('/welcome');
+      console.log('[RootRoute] Not authenticated, redirecting to', signedOutDest);
+      setDestination(signedOutDest);
       return;
     }
     console.log('[RootRoute] GATE CHECK STARTED for authenticated user');
     getCurrentUser().then(user => {
-      if (!user) { setDestination('/welcome'); return; }
+      if (!user) { setDestination(signedOutDest); return; }
       console.log('[RootRoute] Current user:', user);
       unwrap(
         supabase.from('user_profile').select('*').eq('user_email', user.email)
@@ -563,7 +567,7 @@ function OfflineBanner() {
   return (
     <div
       className="fixed top-0 left-0 right-0 z-[60] bg-destructive text-destructive-foreground py-2 px-4 flex items-center justify-center gap-2 text-xs font-semibold"
-      style={{ paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}
+      style={{ paddingTop: 'calc(var(--safe-area-inset-top, env(safe-area-inset-top)) + 8px)' }}
     >
       <WifiOff className="w-3.5 h-3.5" />
       You're offline

@@ -7,7 +7,7 @@ export default function WelcomeNav() {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="fixed top-0 w-full z-50 h-16 md:h-20 flex items-center px-6 md:px-12 border-b"
+      className="fixed top-0 w-full z-50 h-[calc(4rem+var(--sat))] md:h-[calc(5rem+var(--sat))] pt-[var(--sat)] flex items-center px-6 md:px-12 border-b"
       style={{
         backgroundColor: 'rgba(26, 46, 26, 0.85)',
         backdropFilter: 'blur(8px)',
