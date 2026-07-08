@@ -27,6 +27,7 @@ import { WifiOff } from 'lucide-react';
 import Welcome from './pages/Welcome';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import DeleteAccount from './pages/DeleteAccount';
 import Onboarding from './pages/Onboarding';
 import SignIn from './pages/SignIn';
 import Home from './pages/Home';
@@ -254,7 +255,7 @@ const ProtectedRoute = ({ children }) => {
 
 const AuthenticatedApp = () => {
   const location = useLocation();
-  const publicPages = ['/welcome', '/signin', '/create-account', '/signup', '/signup/success', '/billing', '/privacy', '/terms', '/checkout', '/checkout/success', '/customerportal', '/gateway', '/subscribe-now'];
+  const publicPages = ['/welcome', '/signin', '/create-account', '/signup', '/signup/success', '/billing', '/privacy', '/terms', '/delete-account', '/checkout', '/checkout/success', '/customerportal', '/gateway', '/subscribe-now'];
   const isPublicPage = publicPages.includes(location.pathname);
 
   useEffect(() => {
@@ -284,6 +285,7 @@ const AuthenticatedApp = () => {
             <Route path="/create-account" element={<CreateAccount />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
             <Route path="/customerportal" element={<CustomerPortal />} />

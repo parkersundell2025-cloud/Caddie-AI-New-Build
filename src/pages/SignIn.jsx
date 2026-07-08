@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { isNative, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
+import { isNative, getPlatform, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 
 const BG = '#1a2e1a';      // forest green (matches Welcome)
 const CREAM = '#f9f9f7';   // off-white text
@@ -153,6 +153,12 @@ export default function SignIn() {
               <span className="h-px flex-1 bg-white/15" />
             </div>
 
+            {/* Sign in with Apple is hidden on Android: Google doesn't require
+                it, and Apple's web-OAuth flow is untested on Android — a broken
+                button is a Play-review rejection risk. Shown on iOS (Apple
+                requires it there when other third-party sign-in is offered) and
+                on web. */}
+            {getPlatform() !== 'android' && (
             <button
               onClick={signInWithApple}
               className="w-full px-6 py-3.5 rounded-xl font-semibold text-sm border border-white/20 text-white bg-transparent hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center gap-2"
@@ -162,6 +168,7 @@ export default function SignIn() {
               </svg>
               Continue with Apple
             </button>
+            )}
 
             <button
               onClick={signInWithGoogle}
