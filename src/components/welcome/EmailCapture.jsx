@@ -2,14 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/db';
-import InstallModal from './InstallModal';
 
 export default function EmailCapture({ id: formId = 'email-form', variant = 'hero' }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [pendingUrl, setPendingUrl] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -34,29 +31,17 @@ export default function EmailCapture({ id: formId = 'email-form', variant = 'her
       });
       if (insErr) throw insErr;
       if (window.fbq) window.fbq('track', 'Lead');
-      const url = `/subscribe-now?email=${encodeURIComponent(email)}`;
-      setPendingUrl(url);
-      setShowModal(true);
-      setLoading(false);
+      // Straight to plan selection — the add-to-home-screen popup was a
+      // pre-App-Store relic (users should install from the stores now).
+      navigate(`/subscribe-now?email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError('Something went wrong. Please try again.');
       setLoading(false);
     }
   };
 
-  const handleProceed = () => {
-    setShowModal(false);
-    navigate(pendingUrl);
-  };
-
   return (
     <>
-      {showModal && (
-        <InstallModal
-          onClose={() => setShowModal(false)}
-          onProceed={handleProceed}
-        />
-      )}
       <form onSubmit={handleSubmit} className="w-full" id={formId}>
         <div className={`flex flex-col ${variant === 'hero' ? 'sm:flex-row' : 'flex-col'} gap-3 mb-3`}>
           <input
