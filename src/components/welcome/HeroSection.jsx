@@ -2,9 +2,8 @@ import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import CountdownTimer from './CountdownTimer';
 import WaitlistCounter from './WaitlistCounter';
-import EmailCapture from './EmailCapture';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { APP_STORE_URL } from '@/lib/shareConfig';
+import { getAppStoreUrl, trackAppStoreClick } from '@/lib/campaign';
 
 const screenshots = [
 { id: 1, src: '/images/welcome/hero-5971.jpg' },
@@ -205,29 +204,11 @@ export default function HeroSection() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.8 }}
-              className="w-full max-w-md"
-              id="hero-email-form">
-
-              <EmailCapture variant="hero" />
-
-
-
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.88 }}
               className="flex flex-col items-center lg:items-start gap-3 w-full max-w-md">
 
-              <div className="flex items-center gap-3 w-full">
-                <div className="flex-1 h-px" style={{ backgroundColor: 'rgba(249,249,247,0.15)' }} />
-                <span className="text-xs uppercase tracking-widest" style={{ color: 'rgba(249,249,247,0.5)' }}>or</span>
-                <div className="flex-1 h-px" style={{ backgroundColor: 'rgba(249,249,247,0.15)' }} />
-              </div>
-
               <a
-                href={APP_STORE_URL}
+                href={getAppStoreUrl()}
+                onClick={() => trackAppStoreClick('hero')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block transition-transform active:scale-95 hover:scale-105"
@@ -236,7 +217,7 @@ export default function HeroSection() {
                 <img
                   src="/images/welcome/app-store-badge.svg"
                   alt="Download on the App Store"
-                  style={{ height: '48px', width: 'auto' }} />
+                  style={{ height: '56px', width: 'auto' }} />
 
               </a>
             </motion.div>
