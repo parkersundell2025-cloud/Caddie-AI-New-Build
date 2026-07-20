@@ -3,9 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { isNative, getPlatform, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 
-const BG = '#1a2e1a';      // forest green (matches Welcome)
-const CREAM = '#f9f9f7';   // off-white text
-const SAGE = '#a8d5a2';    // sage button
+// "The Cut" tokens — this route renders outside AppLayout, so it paints its
+// own ground instead of relying on the scoped theme class.
+const BG = '#0B0F0C';
+const CREAM = '#F4EFE3';
+const GREEN = '#5FBE7E';
+const GROUND =
+  'radial-gradient(120% 60% at 100% 0%, rgba(95,190,126,.10) 0%, transparent 50%), linear-gradient(180deg, #0F1714 0%, #0B0F0C 60%)';
 
 // Where the magic-link click / OAuth provider redirects back to. On native
 // (Capacitor iOS), the caddieai:// custom scheme is registered in Info.plist;
@@ -26,8 +30,8 @@ const redirectTo = () =>
   isNative() ? `${NATIVE_URL_SCHEME}://gateway` : `${window.location.origin}/gateway`;
 
 const inputClass =
-  'w-full px-4 py-3.5 rounded-xl bg-white/10 border border-white/20 text-white ' +
-  'placeholder-white/50 outline-none focus:border-green-400 transition-colors disabled:opacity-50';
+  'w-full px-4 py-3.5 rounded-xl bg-cut-card border border-cut-card-border text-cut-ink ' +
+  'placeholder:text-cut-ink-mute outline-none focus:border-cut-green transition-colors disabled:opacity-50';
 
 export default function SignIn() {
   const [searchParams] = useSearchParams();
@@ -89,29 +93,31 @@ export default function SignIn() {
   return (
     <div
       className="fixed inset-0 flex flex-col items-center justify-center px-6"
-      style={{ backgroundColor: BG, color: CREAM }}
+      style={{ background: GROUND, color: CREAM }}
     >
       <div className="w-full max-w-sm flex flex-col items-center gap-8">
         {/* Wordmark */}
-        <div className="flex items-baseline gap-1">
-          <span className="font-fraunces text-3xl font-bold tracking-tight" style={{ color: CREAM }}>
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-fraunces text-3xl font-medium" style={{ color: CREAM, letterSpacing: '-0.02em' }}>
             Caddie
           </span>
-          <span className="font-fraunces text-lg font-light tracking-wide text-white/60">
+          <span className="font-fraunces text-base font-medium uppercase text-cut-ink-mute" style={{ letterSpacing: '0.04em' }}>
             AI
           </span>
         </div>
 
         {status === 'sent' ? (
           <div className="text-center space-y-3">
-            <h1 className="font-fraunces text-2xl font-semibold">Check your email</h1>
-            <p className="text-sm text-white/70">
-              We sent a sign-in link to <span className="font-medium text-white">{email}</span>.
+            <h1 className="cut-headline text-2xl" style={{ color: CREAM }}>
+              Check your <span className="italic text-cut-green">email</span>.
+            </h1>
+            <p className="text-sm text-cut-ink-soft">
+              We sent a sign-in link to <span className="font-medium text-cut-ink">{email}</span>.
               Open it on this device to continue.
             </p>
             <button
               onClick={() => setStatus('idle')}
-              className="text-sm text-white/60 underline underline-offset-4"
+              className="text-sm text-cut-ink-mute underline underline-offset-4"
             >
               Use a different email
             </button>
@@ -119,8 +125,10 @@ export default function SignIn() {
         ) : (
           <div className="w-full space-y-5">
             <div className="text-center space-y-1.5">
-              <h1 className="font-fraunces text-2xl font-semibold">Welcome to Caddie AI</h1>
-              <p className="text-sm text-white/60">Enter your email — we'll send you a magic link to sign in or get started.</p>
+              <h1 className="cut-headline text-2xl" style={{ color: CREAM }}>
+                Welcome to <span className="italic text-cut-green">Caddie</span>.
+              </h1>
+              <p className="text-sm text-cut-ink-mute">Enter your email — we'll send you a magic link to sign in or get started.</p>
             </div>
 
             <form onSubmit={sendMagicLink} className="space-y-3">
@@ -139,7 +147,7 @@ export default function SignIn() {
                 type="submit"
                 disabled={status === 'sending'}
                 className="w-full px-6 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ backgroundColor: SAGE, color: BG }}
+                style={{ backgroundColor: GREEN, color: BG, boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
               >
                 {status === 'sending'
                   ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -148,9 +156,9 @@ export default function SignIn() {
             </form>
 
             <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-white/15" />
-              <span className="text-xs text-white/40">or</span>
-              <span className="h-px flex-1 bg-white/15" />
+              <span className="h-px flex-1" style={{ background: 'rgba(244,239,227,.10)' }} />
+              <span className="text-xs text-cut-ink-mute">or</span>
+              <span className="h-px flex-1" style={{ background: 'rgba(244,239,227,.10)' }} />
             </div>
 
             {/* Sign in with Apple is hidden on Android: Google doesn't require
@@ -161,7 +169,7 @@ export default function SignIn() {
             {getPlatform() !== 'android' && (
             <button
               onClick={signInWithApple}
-              className="w-full px-6 py-3.5 rounded-xl font-semibold text-sm border border-white/20 text-white bg-transparent hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center gap-2"
+              className="w-full px-6 py-3.5 rounded-xl font-semibold text-sm border border-cut-card-border text-cut-ink cut-glass transition-colors active:scale-95 flex items-center justify-center gap-2"
             >
               <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.05 20.28c-.98.95-2.05.86-3.08.43-1.09-.45-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.43C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
@@ -172,7 +180,7 @@ export default function SignIn() {
 
             <button
               onClick={signInWithGoogle}
-              className="w-full px-6 py-3.5 rounded-xl font-semibold text-sm border border-white/20 text-white bg-transparent hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center gap-2"
+              className="w-full px-6 py-3.5 rounded-xl font-semibold text-sm border border-cut-card-border text-cut-ink cut-glass transition-colors active:scale-95 flex items-center justify-center gap-2"
             >
               <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 18 18">
                 <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
@@ -184,7 +192,7 @@ export default function SignIn() {
             </button>
 
             {status === 'error' && (
-              <p className="text-red-400 text-sm text-center">{message}</p>
+              <p className="text-sm text-center" style={{ color: '#E5695E' }}>{message}</p>
             )}
           </div>
         )}

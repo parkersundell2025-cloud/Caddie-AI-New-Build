@@ -34,7 +34,7 @@ export default function PlayerLevelCard({ xp, name }) {
         <div className="h-2 bg-primary-foreground/20 rounded-full overflow-hidden">
           <motion.div
             className="h-full rounded-full"
-            style={{ backgroundColor: '#a8d5a2' }}
+            style={{ backgroundColor: '#5FBE7E' }}
             initial={{ width: 0 }}
             animate={{ width: `${progressPct}%` }}
             transition={{ duration: 0.8, ease: 'easeOut' }}

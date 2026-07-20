@@ -88,7 +88,7 @@ function MiniStatChart({ stat, rounds }) {
               formatter={v => [`${v}${stat.unit}`, stat.label]}
               labelFormatter={l => format(new Date(l), 'MMM d')}
             />
-            <ReferenceLine y={stat.tourBenchmark} stroke="#a8d5a2" strokeDasharray="3 2" />
+            <ReferenceLine y={stat.tourBenchmark} stroke="#5FBE7E" strokeDasharray="3 2" />
             <Line type="monotone" dataKey="value" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
           </LineChart>
         </ResponsiveContainer>

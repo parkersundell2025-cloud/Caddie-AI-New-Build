@@ -28,7 +28,7 @@ export default function CelebrationPopup({ visible, emoji, headline, copy, onSha
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 26 }}
             className="w-full max-w-lg mx-auto rounded-t-3xl p-8 flex flex-col items-center text-center space-y-6"
-            style={{ backgroundColor: '#0d1f16', paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 2.5rem)' }}
+            style={{ backgroundColor: '#0B0F0C', paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 2.5rem)' }}
           >
             {/* Celebration emoji */}
             <div className="text-6xl leading-none">{emoji}</div>
@@ -44,7 +44,7 @@ export default function CelebrationPopup({ visible, emoji, headline, copy, onSha
               <button
                 onClick={onShare}
                 className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all"
-                style={{ backgroundColor: '#a8d5a2', color: '#0d1f16' }}
+                style={{ backgroundColor: '#5FBE7E', color: '#0B0F0C' }}
               >
                 Share Your Achievement →
               </button>

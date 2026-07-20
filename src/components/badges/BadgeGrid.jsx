@@ -3,14 +3,14 @@ import { ALL_BADGES } from '@/lib/badgeConfig';
 
 const TIER_ACCENT = {
   beginner: '#9ca3af',
-  consistency: '#a8d5a2',
-  improvement: '#a8d5a2',
+  consistency: '#5FBE7E',
+  improvement: '#5FBE7E',
   competitive: '#facc15',
   prestige: '#f59e0b',
 };
 
 function BadgeItem({ badge, earned, earnedAt }) {
-  const accent = TIER_ACCENT[badge.tier] || '#a8d5a2';
+  const accent = TIER_ACCENT[badge.tier] || '#5FBE7E';
   return (
     <div className="flex flex-col items-center gap-2">
       <div
@@ -19,8 +19,8 @@ function BadgeItem({ badge, earned, earnedAt }) {
           width: 56,
           height: 56,
           borderRadius: '50%',
-          background: earned ? 'rgba(168,213,162,0.1)' : 'rgba(255,255,255,0.04)',
-          border: `2px solid ${earned ? accent : 'rgba(255,255,255,0.08)'}`,
+          background: earned ? 'rgba(95,190,126,0.1)' : 'rgba(244,239,227,0.04)',
+          border: `2px solid ${earned ? accent : 'rgba(244,239,227,0.08)'}`,
           filter: earned ? 'none' : 'grayscale(1)',
           opacity: earned ? 1 : 0.4,
           boxShadow: earned ? `0 0 12px ${accent}30` : 'none',
@@ -28,16 +28,16 @@ function BadgeItem({ badge, earned, earnedAt }) {
       >
         {badge.icon}
       </div>
-      <p className="text-[10px] font-bold text-center leading-tight max-w-[60px]" style={{ color: earned ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)' }}>
+      <p className="text-[10px] font-bold text-center leading-tight max-w-[60px]" style={{ color: earned ? 'rgba(244,239,227,0.85)' : 'rgba(244,239,227,0.3)' }}>
         {badge.name}
       </p>
       {earned && earnedAt && (
-        <p className="text-[9px] text-center" style={{ color: 'rgba(255,255,255,0.3)', marginTop: -4 }}>
+        <p className="text-[9px] text-center" style={{ color: 'rgba(244,239,227,0.3)', marginTop: -4 }}>
           {new Date(earnedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </p>
       )}
       {!earned && (
-        <p className="text-[9px] text-center leading-tight max-w-[60px]" style={{ color: 'rgba(255,255,255,0.2)', marginTop: -4 }}>
+        <p className="text-[9px] text-center leading-tight max-w-[60px]" style={{ color: 'rgba(244,239,227,0.2)', marginTop: -4 }}>
           {badge.req}
         </p>
       )}

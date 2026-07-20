@@ -62,7 +62,7 @@ function MonthlyGamePlanModal({ plan, onClose, onRegenerate, regenerating }) {
                 <p className="text-sm font-bold text-foreground">{plan.key_drill}</p>
               </div>
               <div className="rounded-2xl p-4 space-y-1" style={{ backgroundColor: '#1a2e1a' }}>
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#a8d5a2' }}>Coach's Note</p>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#5FBE7E' }}>Coach's Note</p>
                 <p className="text-white/90 text-sm leading-relaxed select-text">{plan.coachs_note}</p>
               </div>
             </>
@@ -117,8 +117,8 @@ export default function MonthlyGamePlanCard({ userEmail }) {
         <div className="p-5 flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5" style={{ color: '#a8d5a2' }} />
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#a8d5a2' }}>
+              <Calendar className="w-3.5 h-3.5" style={{ color: '#5FBE7E' }} />
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#5FBE7E' }}>
                 This Month's Game Plan
               </p>
               <ProBadge />
@@ -132,7 +132,7 @@ export default function MonthlyGamePlanCard({ userEmail }) {
               <p className="text-white/50 text-xs">Tap to generate your monthly strategy</p>
             )}
           </div>
-          <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: '#a8d5a2' }} />
+          <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: '#5FBE7E' }} />
         </div>
       </button>
 

@@ -106,7 +106,7 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
       exit={{ opacity: 0, y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
       className="fixed inset-0 z-[60] flex flex-col"
-      style={{ backgroundColor: '#0a1a0f', paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}
+      style={{ backgroundColor: '#0B0F0C', paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}
     >
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-4 flex-shrink-0">
@@ -130,7 +130,7 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
           <motion.div
             className="h-full rounded-full"
-            style={{ backgroundColor: '#a8d5a2' }}
+            style={{ backgroundColor: '#5FBE7E' }}
             initial={{ width: 0 }}
             animate={{ width: `${progress * 100}%` }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -138,11 +138,12 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
         </div>
       </div>
 
-      {/* Leaderboard widget */}
-      {leaderboard && myRank && (
-        <div className="mx-5 mb-3 px-4 py-2.5 rounded-2xl flex items-center justify-between flex-shrink-0" style={{ backgroundColor: 'rgba(168,213,162,0.08)', border: '1px solid rgba(168,213,162,0.2)' }}>
+      {/* Leaderboard widget — myRank is 0 when the user isn't on the board
+          (findIndex -1 + 1), and a bare `&& myRank` renders a literal "0" */}
+      {leaderboard && myRank > 0 && (
+        <div className="mx-5 mb-3 px-4 py-2.5 rounded-2xl flex items-center justify-between flex-shrink-0" style={{ backgroundColor: 'rgba(95,190,126,0.08)', border: '1px solid rgba(95,190,126,0.2)' }}>
           <div className="flex items-center gap-2">
-            <span className="text-[#a8d5a2] font-black text-lg">#{myRank}</span>
+            <span className="text-[#5FBE7E] font-black text-lg">#{myRank}</span>
             <span className="text-white/50 text-xs">this month</span>
           </div>
           <div className="text-right">
@@ -186,7 +187,7 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
               transition={{ duration: 1.0, ease: 'easeOut' }}
               className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
             >
-              <span className="text-2xl font-black" style={{ color: '#a8d5a2', textShadow: '0 0 20px rgba(168,213,162,0.6)' }}>+1 pt</span>
+              <span className="text-2xl font-black" style={{ color: '#5FBE7E', textShadow: '0 0 20px rgba(95,190,126,0.6)' }}>+1 pt</span>
             </motion.div>
           )}
         </AnimatePresence>

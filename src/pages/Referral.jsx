@@ -77,9 +77,9 @@ export default function Referral() {
 
       <div className="px-5 py-6 space-y-6 flex-1">
         {/* Hero */}
-        <div className="rounded-3xl p-6 text-center space-y-3" style={{ backgroundColor: '#1a2e1a' }}>
-          <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ backgroundColor: '#a8d5a2' }}>
-            <Gift className="w-7 h-7" style={{ color: '#1a2e1a' }} />
+        <div className="rounded-3xl p-6 text-center space-y-3" style={{ backgroundColor: '#0F1714' }}>
+          <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ backgroundColor: '#5FBE7E' }}>
+            <Gift className="w-7 h-7" style={{ color: '#0F1714' }} />
           </div>
           <h2 className="text-white text-2xl font-black leading-tight">Earn free months</h2>
           <p className="text-white/70 text-sm leading-relaxed">
@@ -114,7 +114,7 @@ export default function Referral() {
               <button
                 onClick={handleShare}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm active:scale-95 transition-all"
-                style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+                style={{ backgroundColor: '#5FBE7E', color: '#0F1714' }}
               >
                 <Share2 className="w-4 h-4" />
                 Share My Referral Link

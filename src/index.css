@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fraunces:wght@600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,400..900&family=JetBrains+Mono:wght@400..700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -57,6 +57,35 @@
     --input: 0 0% 18%;
     --ring: 114 35% 65%;
   }
+
+  /* "The Cut" — Phase 0 design system (dark). Scoped: AppLayout toggles this
+     class on <html>; public pages (/welcome etc.) stay on the old theme
+     until each is deliberately ported. Values from the locked design export. */
+  .theme-cut {
+    --background: 135 15% 5%;          /* #0B0F0C near-black green */
+    --foreground: 42 44% 92%;          /* #F4EFE3 cream */
+    --card: 150 13% 9%;                /* #141A17 solid card */
+    --card-foreground: 42 44% 92%;
+    --popover: 150 13% 9%;
+    --popover-foreground: 42 44% 92%;
+    --primary: 140 42% 56%;            /* #5FBE7E fairway green */
+    --primary-foreground: 135 15% 5%;
+    --secondary: 150 13% 12%;
+    --secondary-foreground: 42 44% 92%;
+    --muted: 150 13% 12%;
+    --muted-foreground: 60 3% 55%;     /* cream @45% flattened onto bg */
+    --accent: 148 69% 18%;             /* #0E4D2B masters deep */
+    --accent-foreground: 42 44% 92%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 42 44% 92%;
+    --border: 135 5% 14%;              /* cream @10% flattened onto bg */
+    --input: 135 5% 14%;
+    --ring: 140 42% 56%;
+    --radius: 1.25rem;
+    --sage: 140 42% 56%;
+    --sage-dark: 148 69% 18%;
+    --sage-light: 148 40% 14%;
+  }
 }
 
 @layer base {
@@ -96,6 +125,57 @@
   @apply bg-accent text-accent-foreground rounded-2xl font-semibold px-6 py-3 text-sm transition-all active:scale-95;
 }
 
+/* ─── The Cut primitives ─────────────────────────────────────────────── */
+
+/* Page ground: green-cast radial sheen over a vertical near-black gradient */
+.theme-cut .cut-ground,
+.theme-cut body {
+  background:
+    radial-gradient(120% 60% at 100% 0%, rgba(95, 190, 126, .10) 0%, transparent 50%),
+    linear-gradient(180deg, #0F1714 0%, #0B0F0C 60%);
+  background-attachment: fixed;
+}
+
+.cut-glass {
+  position: relative;
+  background: rgba(244, 239, 227, .04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(244, 239, 227, .10);
+  border-radius: 22px;
+  box-shadow: inset 0 1px 0 rgba(244, 239, 227, .06);
+}
+
+.cut-eyebrow {
+  @apply text-[10px] font-semibold uppercase;
+  letter-spacing: 1.6px;
+}
+
+.cut-headline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+}
+
+.cut-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+}
+
+/* Bridge styles so unported screens hold together on the dark ground */
+.theme-cut .card-base {
+  background: rgba(244, 239, 227, .04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(244, 239, 227, .10);
+  box-shadow: inset 0 1px 0 rgba(244, 239, 227, .06);
+}
+
+.theme-cut .btn-primary {
+  background: hsl(var(--primary));
+  color: #0B0F0C;
+  box-shadow: 0 0 18px rgba(95, 190, 126, .30);
+}
+
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -124,6 +204,18 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
   border: 2px solid white;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.theme-cut input[type="range"]::-webkit-slider-thumb {
+  background: #5FBE7E;
+  border-color: #0B0F0C;
+  box-shadow: 0 0 12px rgba(95, 190, 126, .30);
+}
+
+.theme-cut input[type="range"]::-moz-range-thumb {
+  background: #5FBE7E;
+  border-color: #0B0F0C;
+  box-shadow: 0 0 12px rgba(95, 190, 126, .30);
 }
 
 .scrollbar-none::-webkit-scrollbar {

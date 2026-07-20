@@ -64,7 +64,7 @@ export default function CustomerPortal() {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center gap-6 px-6 text-center"
-        style={{ backgroundColor: '#1a2e1a', color: '#f9f9f7' }}
+        style={{ backgroundColor: '#0F1714', color: '#F4EFE3' }}
       >
         <Logo size="lg" />
         <div className="space-y-4 max-w-sm">
@@ -73,7 +73,7 @@ export default function CustomerPortal() {
           <button
             onClick={() => navigate('/manage-subscription')}
             className="block w-full py-4 rounded-full font-bold text-sm text-center mt-4 active:scale-95 transition-all"
-            style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+            style={{ backgroundColor: '#5FBE7E', color: '#0F1714' }}
           >
             Back
           </button>
@@ -85,7 +85,7 @@ export default function CustomerPortal() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-6 px-6"
-      style={{ backgroundColor: '#1a2e1a', color: '#f9f9f7' }}
+      style={{ backgroundColor: '#0F1714', color: '#F4EFE3' }}
     >
       <Logo size="lg" />
       <div className="flex flex-col items-center gap-4 mt-4">

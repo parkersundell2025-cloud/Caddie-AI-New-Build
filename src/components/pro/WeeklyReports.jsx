@@ -41,7 +41,7 @@ function ReportCard({ report, defaultOpen }) {
                 <p className="text-sm font-bold text-foreground">{report.drill_of_the_week}</p>
               </div>
               <div className="rounded-2xl p-4 space-y-1.5" style={{ backgroundColor: '#1a2e1a' }}>
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#a8d5a2' }}>Coach's Take</p>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#5FBE7E' }}>Coach's Take</p>
                 <p className="text-white/90 text-sm leading-relaxed select-text">{report.coachs_take}</p>
               </div>
               <ReportSection label="Looking Ahead" text={report.looking_ahead} />

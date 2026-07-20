@@ -112,7 +112,7 @@ export default function HandicapChart({ profile }) {
                 labelFormatter={l => format(new Date(l), 'MMM d, yyyy')}
               />
               {goal !== null && goal !== undefined && (
-                <ReferenceLine y={goal} stroke="#a8d5a2" strokeDasharray="4 3" label={{ value: 'Goal', fontSize: 9, fill: '#a8d5a2', position: 'right' }} />
+                <ReferenceLine y={goal} stroke="#5FBE7E" strokeDasharray="4 3" label={{ value: 'Goal', fontSize: 9, fill: '#5FBE7E', position: 'right' }} />
               )}
               <Line type="monotone" dataKey="handicap" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
             </LineChart>

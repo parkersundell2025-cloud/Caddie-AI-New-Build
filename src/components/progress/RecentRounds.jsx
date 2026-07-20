@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { ChevronDown } from 'lucide-react';
 import { parseDateLocal } from '@/lib/dateUtils';
 
-const CARD = { background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 };
+const CARD = { background: '#141A17', border: '1px solid rgba(95,190,126,0.15)', borderRadius: 20 };
 
 function RoundCard({ round, handicapPar }) {
   const scramblingValid = round.scrambling_attempts > 0;
@@ -25,8 +25,8 @@ function RoundCard({ round, handicapPar }) {
           {round.total_score}
         </p>
         <div className="min-w-0">
-          <p className="font-bold truncate" style={{ color: 'rgba(255,255,255,0.9)' }}>{round.course_name || 'Unknown Course'}</p>
-          <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <p className="font-bold truncate" style={{ color: 'rgba(244,239,227,0.9)' }}>{round.course_name || 'Unknown Course'}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'rgba(244,239,227,0.4)' }}>
             {round.round_date ? format(parseDateLocal(round.round_date), 'MMM d, yyyy') : ''}
           </p>
         </div>
@@ -37,7 +37,7 @@ function RoundCard({ round, handicapPar }) {
             <span
               key={p}
               className="text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}
+              style={{ background: 'rgba(244,239,227,0.07)', color: 'rgba(244,239,227,0.6)' }}
             >
               {p}
             </span>
@@ -45,7 +45,7 @@ function RoundCard({ round, handicapPar }) {
         </div>
       )}
       {round.notes && (
-        <p className="text-xs italic" style={{ color: 'rgba(255,255,255,0.4)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+        <p className="text-xs italic" style={{ color: 'rgba(244,239,227,0.4)', borderTop: '1px solid rgba(244,239,227,0.06)', paddingTop: 10 }}>
           {round.notes}
         </p>
       )}
@@ -61,9 +61,9 @@ export default function RecentRounds({ rounds, profile }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.4)' }}>Recent Rounds</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(244,239,227,0.4)' }}>Recent Rounds</p>
         {handicapPar && (
-          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <p className="text-[10px]" style={{ color: 'rgba(244,239,227,0.3)' }}>
             <span style={{ color: '#22c55e' }}>●</span> at/under {handicapPar}
           </p>
         )}
@@ -71,7 +71,7 @@ export default function RecentRounds({ rounds, profile }) {
       {rounds.length === 0 ? (
         <div style={CARD} className="p-8 text-center space-y-2">
           <p className="text-4xl">⛳</p>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>No rounds logged yet.<br />Tap "Log Round" to get started.</p>
+          <p className="text-sm" style={{ color: 'rgba(244,239,227,0.4)' }}>No rounds logged yet.<br />Tap "Log Round" to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -80,7 +80,7 @@ export default function RecentRounds({ rounds, profile }) {
             <button
               onClick={() => setShowAll(v => !v)}
               className="w-full py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all"
-              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ background: 'rgba(244,239,227,0.05)', color: 'rgba(244,239,227,0.5)', border: '1px solid rgba(244,239,227,0.08)' }}
             >
               <ChevronDown className={`w-4 h-4 transition-transform ${showAll ? 'rotate-180' : ''}`} />
               {showAll ? 'Show less' : `Show all ${rounds.length} rounds`}

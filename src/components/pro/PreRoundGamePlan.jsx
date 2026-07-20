@@ -33,7 +33,7 @@ export default function PreRoundGamePlan({ onDismiss, onProceed }) {
             <div className="w-7 h-7 rounded-full bg-foreground flex items-center justify-center text-sm flex-shrink-0">
               🏌️
             </div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#a8d5a2' }}>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#5FBE7E' }}>
               Pre-Round Game Plan
             </p>
             <ProBadge />
@@ -58,7 +58,7 @@ export default function PreRoundGamePlan({ onDismiss, onProceed }) {
           <button
             onClick={onProceed}
             className="flex-1 py-2.5 rounded-xl font-bold text-sm text-center transition-all active:scale-95"
-            style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+            style={{ backgroundColor: '#5FBE7E', color: '#1a2e1a' }}
           >
             Log Round →
           </button>

@@ -1,3 +1,4 @@
+import { captureCampaignFromUrl } from '@/lib/campaign';
 import WelcomeNav from '@/components/welcome/WelcomeNav';
 import HeroSection from '@/components/welcome/HeroSection';
 import HowItWorksSection from '@/components/welcome/HowItWorksSection';
@@ -13,6 +14,11 @@ import BottomCTA from '@/components/welcome/BottomCTA';
 import WelcomeFooter from '@/components/welcome/WelcomeFooter';
 
 export default function Welcome() {
+  // Capture during render, not in an effect — children compute the App Store
+  // href on first render, so the tag must be in storage before they mount.
+  // Idempotent, so double-invocation under StrictMode is harmless.
+  captureCampaignFromUrl();
+
   return (
     <div style={{ backgroundColor: '#1a2e1a', color: '#f9f9f7' }}>
       <WelcomeNav />

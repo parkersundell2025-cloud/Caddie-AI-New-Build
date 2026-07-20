@@ -27,8 +27,8 @@ export default function ReferralPopup({ onDismiss }) {
         className="bg-background rounded-3xl w-full max-w-sm p-6 space-y-5"
       >
         <div className="flex items-start justify-between">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#a8d5a2' }}>
-            <Gift className="w-6 h-6" style={{ color: '#1a2e1a' }} />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#5FBE7E' }}>
+            <Gift className="w-6 h-6" style={{ color: '#0F1714' }} />
           </div>
           <button onClick={onDismiss} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
             <X className="w-4 h-4 text-foreground" />
@@ -46,7 +46,7 @@ export default function ReferralPopup({ onDismiss }) {
         <button
           onClick={handleSeeLink}
           className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all"
-          style={{ backgroundColor: '#1a2e1a', color: 'white' }}
+          style={{ backgroundColor: '#0F1714', color: 'white' }}
         >
           See My Referral Link
         </button>

@@ -10,7 +10,7 @@ export default function ProBadge({ className = '' }) {
   return (
     <span
       className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider align-middle ${className}`}
-      style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+      style={{ backgroundColor: '#5FBE7E', color: '#0F1714' }}
     >
       PRO
     </span>

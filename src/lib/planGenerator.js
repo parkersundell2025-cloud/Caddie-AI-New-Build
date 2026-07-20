@@ -78,6 +78,38 @@ export function buildPlanPrompt({ profile, drillRatings = [] }) {
     ? `DRILLS DONE IN THE LAST 7 DAYS (avoid repeating these unless no alternatives exist at the right difficulty):\n${recentDrills.map(d => `  - ${d}`).join('\n')}`
     : 'DRILLS DONE IN THE LAST 7 DAYS: None — all drills are available.';
 
+  // The golfer's Practice Preferences (Profile page) were never fed to the
+  // generator, so it scheduled session types the user had disabled — e.g.
+  // Golf Fitness for a user who set it to 0. An all-zero distribution means
+  // "not configured": fall back to weakest-skill weighting.
+  const TYPE_LABELS = { range_day: 'Range Day', putting_short_game: 'Putting & Short Game', golf_fitness: 'Golf Fitness' };
+  const prefs = profile.session_type_preferences || {};
+  const dist = profile.session_distribution || {};
+  const hasDistribution = Object.values(dist).some(v => v > 0);
+  const excludedTypes = Object.keys(TYPE_LABELS).filter(
+    k => prefs[k] === false || (hasDistribution && !(dist[k] > 0))
+  );
+  const allowsFitness = !excludedTypes.includes('golf_fitness');
+
+  const mixRule = hasDistribution
+    ? `- The golfer chose an exact session-type mix (HARD REQUIREMENT — overrides skill weighting):\n${
+        Object.entries(TYPE_LABELS)
+          .filter(([k]) => dist[k] > 0)
+          .map(([k, label]) => `  * ${label}: exactly ${dist[k]} session${dist[k] === 1 ? '' : 's'}`)
+          .join('\n')
+      }\n  If these counts don't sum to ${profile.days_per_week}, adjust the non-zero types — but NEVER add a type listed at zero or excluded below.`
+    : '- Weight session types toward the weakest skills (rating 1 or 2 gets more sessions of that type)';
+
+  const excludedRule = excludedTypes.length > 0
+    ? `\n- NEVER schedule these session types — the golfer has disabled them: ${excludedTypes.map(k => TYPE_LABELS[k]).join(', ')}`
+    : '';
+
+  const fitnessRule = allowsFitness
+    ? hasDistribution
+      ? '\n- Golf Fitness sessions (if any) go on non-Range-Day days'
+      : '\n- Golf Fitness: schedule on non-Range-Day days if golfer has 3+ days per week'
+    : '';
+
   return `You are the Caddie AI golf coach. Generate a personalized weekly practice plan using ONLY drills from the proprietary Caddie AI Drill Library below. You must NEVER invent or use drills outside this list.
 
 GOLFER PROFILE:
@@ -207,12 +239,11 @@ COURSE MANAGEMENT DRILL RULE (for Range Day only):
 - This drill is in addition to the normal Driving and Iron Play drills.
 
 SESSION SCHEDULING RULES:
-- Weight session types toward the weakest skills (rating 1 or 2 gets more sessions of that type)
+${mixRule}${excludedRule}
 - Schedule exactly ${profile.days_per_week} active sessions on: ${(profile.preferred_days || []).join(', ')}
 - All other days must be "Rest & Recovery"
 - Include ALL 7 days of the week
-- Never schedule two Range Days back-to-back
-- Golf Fitness: schedule on non-Range-Day days if golfer has 3+ days per week
+- Never schedule two Range Days back-to-back${fitnessRule}
 - Each active session: ${drillsPerSession} drills total (including the Course Management drill for Range Days)
 - Session length: ${sessionDuration} minutes
 

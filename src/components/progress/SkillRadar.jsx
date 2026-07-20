@@ -39,8 +39,8 @@ export default function SkillRadar({ profile }) {
             <Radar
               name="Skills"
               dataKey="value"
-              stroke="#1a1a1a"
-              fill="#a8d5a2"
+              stroke="#141A17"
+              fill="#5FBE7E"
               fillOpacity={0.5}
               strokeWidth={2}
             />

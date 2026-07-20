@@ -88,15 +88,15 @@ export default function CoachBriefing({ session, profile, drillRatings, onStart,
         transition={{ type: 'spring', damping: 26 }}
         className="w-full max-w-lg mx-auto rounded-t-3xl p-6 space-y-5"
         style={{
-          backgroundColor: '#0d1f16',
+          backgroundColor: '#0B0F0C',
           paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 1.5rem)',
         }}
       >
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[#a8d5a2]/70 text-xs font-bold uppercase tracking-widest">Coach's Briefing</p>
-            <h3 className="text-white font-black text-xl mt-0.5">{session.title || session.session_type}</h3>
+            <p className="text-[#5FBE7E]/70 text-xs font-bold uppercase tracking-widest">Coach's Briefing</p>
+            <h3 className="cut-headline text-white text-xl mt-0.5">{session.title || session.session_type}</h3>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all">
             <X className="w-4 h-4 text-white/60" />
@@ -104,14 +104,14 @@ export default function CoachBriefing({ session, profile, drillRatings, onStart,
         </div>
 
         {/* Coach avatar + briefing */}
-        <div className="flex items-start gap-3 px-4 py-4 rounded-2xl" style={{ backgroundColor: 'rgba(168,213,162,0.08)' }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-lg" style={{ backgroundColor: '#1a4d2e' }}>
+        <div className="flex items-start gap-3 px-4 py-4 rounded-2xl" style={{ backgroundColor: 'rgba(95,190,126,0.08)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-lg" style={{ backgroundColor: '#0E4D2B' }}>
             🏌️
           </div>
           <div className="flex-1">
             {loading ? (
               <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 text-[#a8d5a2] animate-spin" />
+                <Loader2 className="w-4 h-4 text-[#5FBE7E] animate-spin" />
                 <p className="text-white/50 text-sm">Preparing your briefing...</p>
               </div>
             ) : (
@@ -138,16 +138,16 @@ export default function CoachBriefing({ session, profile, drillRatings, onStart,
 
         {/* Stats row */}
         <div className="flex gap-4">
-          <div className="flex-1 px-3 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-            <p className="text-white font-black text-lg">~{estimatedMinutes}m</p>
+          <div className="flex-1 px-3 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(244,239,227,0.05)' }}>
+            <p className="text-white font-mono font-bold text-lg">~{estimatedMinutes}m</p>
             <p className="text-white/40 text-xs">Est. time</p>
           </div>
-          <div className="flex-1 px-3 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-            <p className="text-white font-black text-lg">{pointsAvailable}</p>
+          <div className="flex-1 px-3 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(244,239,227,0.05)' }}>
+            <p className="text-white font-mono font-bold text-lg">{pointsAvailable}</p>
             <p className="text-white/40 text-xs">pts available</p>
           </div>
-          <div className="flex-1 px-3 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-            <p className="text-white font-black text-lg">{drills.length}</p>
+          <div className="flex-1 px-3 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(244,239,227,0.05)' }}>
+            <p className="text-white font-mono font-bold text-lg">{drills.length}</p>
             <p className="text-white/40 text-xs">drills</p>
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function CoachBriefing({ session, profile, drillRatings, onStart,
         <button
           onClick={onStart}
           className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-all"
-          style={{ backgroundColor: '#a8d5a2', color: '#0d1f16' }}
+          style={{ backgroundColor: '#5FBE7E', color: '#0B0F0C' }}
         >
           Let's Go <ChevronRight className="w-5 h-5" />
         </button>

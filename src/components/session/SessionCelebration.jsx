@@ -6,7 +6,7 @@ import { generateSessionShareCard, shareImageBlob } from '@/components/share/sha
 import Portal from '@/lib/portal';
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
-const CONFETTI_COLORS = ['#a8d5a2', '#ffffff', '#f5c842', '#86efac', '#fcd34d', '#d1fae5'];
+const CONFETTI_COLORS = ['#5FBE7E', '#F4EFE3', '#D9B14A', '#86efac', '#0E4D2B', '#d1fae5'];
 const NUM_PARTICLES = 40;
 
 function ConfettiParticle({ delay }) {
@@ -175,7 +175,7 @@ export default function SessionCelebration({ ratings, session, user, profile, le
       animate={{ opacity: 1 }}
       className="fixed inset-0 z-[70] flex flex-col overflow-y-auto"
       style={{
-        background: 'radial-gradient(ellipse at 50% 30%, #1a4d2e 0%, #0d1f16 60%)',
+        background: 'radial-gradient(ellipse at 50% 30%, #0E4D2B 0%, #0B0F0C 60%)',
         paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))',
         paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 1.5rem)',
       }}
@@ -193,7 +193,7 @@ export default function SessionCelebration({ ratings, session, user, profile, le
           transition={{ delay: 0.3, type: 'spring', damping: 15 }}
           className="text-center space-y-2"
         >
-          <h1 className="text-3xl font-black text-white leading-tight" style={{ letterSpacing: '-0.5px' }}>
+          <h1 className="cut-headline text-3xl text-white leading-tight">
             {headline}
           </h1>
         </motion.div>
@@ -204,12 +204,12 @@ export default function SessionCelebration({ ratings, session, user, profile, le
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="text-center px-8 py-5 rounded-3xl w-full max-w-xs"
-          style={{ backgroundColor: 'rgba(168,213,162,0.12)', border: '1px solid rgba(168,213,162,0.25)' }}
+          style={{ backgroundColor: 'rgba(95,190,126,0.12)', border: '1px solid rgba(95,190,126,0.25)' }}
         >
-          <p className="text-6xl font-black text-white">
+          <p className="text-6xl font-mono font-bold text-white" style={{ letterSpacing: '-2px' }}>
             <CountUp target={sessionPoints} duration={1000} />
           </p>
-          <p className="text-[#a8d5a2] text-sm font-semibold mt-1">Session Points Earned</p>
+          <p className="text-[#5FBE7E] text-sm font-semibold mt-1">Session Points Earned</p>
         </motion.div>
 
         {/* Rank */}
@@ -219,12 +219,12 @@ export default function SessionCelebration({ ratings, session, user, profile, le
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7 }}
             className="w-full px-5 py-4 rounded-2xl"
-            style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+            style={{ backgroundColor: 'rgba(244,239,227,0.06)' }}
           >
             <div className="flex items-center justify-between">
               <div>
                 {rankImproved ? (
-                  <p className="text-[#a8d5a2] font-bold text-sm">📈 You moved up to #{newRank} this month!</p>
+                  <p className="text-[#5FBE7E] font-bold text-sm">📈 You moved up to #{newRank} this month!</p>
                 ) : (
                   <p className="text-white/70 font-bold text-sm">You're holding at #{newRank} this month</p>
                 )}
@@ -232,7 +232,7 @@ export default function SessionCelebration({ ratings, session, user, profile, le
                   <p className="text-white/40 text-xs mt-0.5">{pointsToNext.toFixed(1)} pts behind #{newRank - 1}</p>
                 )}
               </div>
-              <span className="text-3xl font-black" style={{ color: rankImproved ? '#a8d5a2' : 'white' }}>
+              <span className="text-3xl font-black" style={{ color: rankImproved ? '#5FBE7E' : 'white' }}>
                 #{newRank}
               </span>
             </div>
@@ -273,7 +273,7 @@ export default function SessionCelebration({ ratings, session, user, profile, le
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.1 }}
           className="w-full px-5 py-4 rounded-2xl space-y-2"
-          style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
+          style={{ backgroundColor: 'rgba(244,239,227,0.05)' }}
         >
           <div className="flex items-center gap-2">
             <span className="text-base">🎙️</span>
@@ -299,14 +299,14 @@ export default function SessionCelebration({ ratings, session, user, profile, le
           <button
             onClick={onBack}
             className="w-full py-4 rounded-2xl font-black text-base active:scale-95 transition-all"
-            style={{ backgroundColor: '#ffffff', color: '#0d1f16' }}
+            style={{ backgroundColor: '#5FBE7E', color: '#0B0F0C', boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
           >
             Back to Plan
           </button>
           <button
             onClick={handleShare}
             className="w-full py-3.5 rounded-2xl font-bold text-sm active:scale-95 transition-all"
-            style={{ backgroundColor: 'rgba(168,213,162,0.15)', color: '#a8d5a2', border: '1px solid rgba(168,213,162,0.3)' }}
+            style={{ backgroundColor: 'rgba(95,190,126,0.15)', color: '#5FBE7E', border: '1px solid rgba(95,190,126,0.3)' }}
           >
             Share Achievement →
           </button>

@@ -1,28 +1,83 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import BottomNav from './BottomNav';
 import SmartPopupController from '@/components/popups/SmartPopupController';
 import Logo from './Logo';
-import { ChevronLeft, Settings } from 'lucide-react';
+import { ChevronLeft, Settings, Bell } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { unwrap, getCurrentUser } from '@/lib/db';
+
+// Header bell → notification inbox, with an unread dot. One cheap
+// single-row query per navigation; failures just hide the dot.
+function InboxBell() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user || cancelled) return;
+        const rows = await unwrap(
+          supabase.from('notification').select('id')
+            .eq('user_email', user.email).eq('read', false).limit(1)
+        );
+        if (!cancelled) setHasUnread(rows.length > 0);
+      } catch {
+        if (!cancelled) setHasUnread(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [location.pathname]);
+
+  return (
+    <button
+      onClick={() => navigate('/inbox')}
+      className="relative w-9 h-9 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-all"
+      aria-label="Notifications"
+    >
+      <Bell className="w-4 h-4 text-muted-foreground" />
+      {hasUnread && (
+        <span
+          className="absolute top-2 right-2 w-2 h-2 rounded-full bg-cut-gold"
+          style={{ boxShadow: '0 0 6px rgba(217,177,74,.6)' }}
+        />
+      )}
+    </button>
+  );
+}
 
 // Root tab paths — show logo, no back button
 const ROOT_PATHS = ['/', '/plan', '/progress', '/coach', '/leaderboard', '/profile'];
 
 // Sub-screen config: path → { title, backTo }
 const SUB_SCREENS = {
-  '/settings':             { title: 'Settings',             backTo: '/home' },
+  // Settings renders its own serif page header, so the global header shows only Back
+  '/settings':             { title: '',                     backTo: '/home' },
   '/edit-profile':         { title: 'Edit Profile',         backTo: '/settings' },
   '/referral':             { title: 'Refer a Friend',       backTo: '/settings' },
   '/notifications':        { title: 'Notification Preferences', backTo: '/settings' },
   '/leaderboard-info':     { title: 'How It Works',         backTo: '/settings' },
   '/manage-subscription':  { title: 'Manage Subscription',  backTo: '/settings' },
   '/cancel-subscription':  { title: 'Cancel Subscription',  backTo: '/manage-subscription' },
+  // Inbox renders its own serif page header, like /settings
+  '/inbox':                { title: '',                     backTo: '/home' },
 
 };
 
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Theme lives on <html> so Radix portals (dialogs, toasts) inherit it.
+  // Public pages (/welcome, legal) never mount AppLayout and keep the old
+  // theme until Parker's release call.
+  useEffect(() => {
+    document.documentElement.classList.add('theme-cut');
+    return () => document.documentElement.classList.remove('theme-cut');
+  }, []);
 
   const isRoot = ROOT_PATHS.includes(location.pathname);
   const subScreen = SUB_SCREENS[location.pathname];
@@ -42,7 +97,7 @@ export default function AppLayout() {
 
   return (
     <div
-      className="h-[100dvh] bg-background max-w-lg mx-auto relative flex flex-col"
+      className="h-[100dvh] bg-background cut-ground max-w-lg mx-auto relative flex flex-col"
       style={{ paddingTop: 'var(--safe-area-inset-top, env(safe-area-inset-top))' }}
     >
       {/* Global Header */}
@@ -66,20 +121,22 @@ export default function AppLayout() {
         ) : (
           <>
             <Logo size="sm" />
-            {showSettingsGear && (
-              <button
-                onClick={() => navigate('/settings')}
-                className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-all"
-              >
-                <Settings className="w-4 h-4 text-muted-foreground" />
-              </button>
-            )}
-            {!showSettingsGear && <div className="w-9" />}
+            <div className="flex items-center gap-2">
+              <InboxBell />
+              {showSettingsGear && (
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center active:scale-95 transition-all"
+                >
+                  <Settings className="w-4 h-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
           </>
         )}
       </header>
 
-      <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 4rem)' }}>
+      <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 6rem)' }}>
         <Outlet />
       </main>
 

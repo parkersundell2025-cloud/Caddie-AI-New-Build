@@ -2,7 +2,7 @@ import React from 'react';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-const CARD = { background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 };
+const CARD = { background: '#141A17', border: '1px solid rgba(95,190,126,0.15)', borderRadius: 20 };
 
 const SKILLS = [
   { key: 'skill_driving', label: 'Driving' },
@@ -48,15 +48,15 @@ export default function SkillSnapshot({ profile, drillRatings }) {
 
   return (
     <div style={CARD} className="p-5 space-y-5">
-      <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.4)' }}>Skill Snapshot</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(244,239,227,0.4)' }}>Skill Snapshot</p>
 
       {/* Radar */}
       <div style={{ height: 240 }}>
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} margin={{ top: 10, right: 28, bottom: 10, left: 28 }}>
-            <PolarGrid stroke="rgba(255,255,255,0.08)" />
-            <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.5)', fontWeight: 600 }} />
-            <Radar name="Skills" dataKey="value" stroke="#a8d5a2" fill="#a8d5a2" fillOpacity={0.25} strokeWidth={2.5} />
+            <PolarGrid stroke="rgba(244,239,227,0.08)" />
+            <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: 'rgba(244,239,227,0.5)', fontWeight: 600 }} />
+            <Radar name="Skills" dataKey="value" stroke="#5FBE7E" fill="#5FBE7E" fillOpacity={0.25} strokeWidth={2.5} />
           </RadarChart>
         </ResponsiveContainer>
       </div>
@@ -70,15 +70,15 @@ export default function SkillSnapshot({ profile, drillRatings }) {
           return (
             <div key={key} className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.8)' }}>{label}</span>
+                <span className="text-sm font-semibold" style={{ color: 'rgba(244,239,227,0.8)' }}>{label}</span>
                 <div className="flex items-center gap-2">
                   {trend === 'up' && <TrendingUp className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />}
                   {trend === 'down' && <TrendingDown className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />}
-                  {trend === 'flat' && <Minus className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.3)' }} />}
+                  {trend === 'flat' && <Minus className="w-3.5 h-3.5" style={{ color: 'rgba(244,239,227,0.3)' }} />}
                   <span className="text-sm font-black" style={{ color }}>{val}/5</span>
                 </div>
               </div>
-              <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+              <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(244,239,227,0.07)' }}>
                 <div
                   className="h-full rounded-full transition-all duration-700"
                   style={{ width: `${(val / 5) * 100}%`, background: color }}

@@ -84,22 +84,22 @@ Write the coaching paragraph now. No greeting. No sign-off. Just the coaching in
   return (
     <div
       className="rounded-3xl p-5 space-y-3"
-      style={{ background: '#141414', borderLeft: '3px solid #a8d5a2', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 }}
+      style={{ background: '#141A17', borderLeft: '3px solid #5FBE7E', border: '1px solid rgba(95,190,126,0.15)', borderRadius: 20 }}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: '#a8d5a2' }}>Coach's Take</p>
-          <p className="text-sm font-bold mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>What the data says</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: '#5FBE7E' }}>Coach's Take</p>
+          <p className="text-sm font-bold mt-0.5" style={{ color: 'rgba(244,239,227,0.6)' }}>What the data says</p>
         </div>
         <span className="text-2xl flex-shrink-0">🏌️</span>
       </div>
       {loading ? (
         <div className="flex items-center gap-2 py-3">
-          <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#a8d5a2' }} />
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Analysing your game...</p>
+          <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#5FBE7E' }} />
+          <p className="text-sm" style={{ color: 'rgba(244,239,227,0.4)' }}>Analysing your game...</p>
         </div>
       ) : (
-        <p className="text-base leading-relaxed select-text" style={{ color: 'rgba(255,255,255,0.85)' }}>{text}</p>
+        <p className="text-base leading-relaxed select-text" style={{ color: 'rgba(244,239,227,0.85)' }}>{text}</p>
       )}
     </div>
   );
