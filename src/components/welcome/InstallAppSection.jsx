@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { APP_STORE_URL } from '@/lib/shareConfig';
+import { getAppStoreUrl, trackAppStoreClick } from '@/lib/campaign';
 
 const iphoneSteps = [
   'Open caddieaiapp.com in Safari',
@@ -127,7 +127,8 @@ export default function InstallAppSection() {
 
         <div className="flex flex-col items-center gap-3 pt-2">
           <a
-            href={APP_STORE_URL}
+            href={getAppStoreUrl()}
+            onClick={() => trackAppStoreClick('install-section')}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block transition-transform active:scale-95 hover:scale-105"
