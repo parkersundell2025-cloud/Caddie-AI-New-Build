@@ -130,10 +130,10 @@ export default function CheckoutSuccess() {
 
   return (
     <div
-      style={{ backgroundColor: '#1a2e1a' }}
+      style={{ background: 'radial-gradient(120% 60% at 100% 0%, rgba(95,190,126,.10) 0%, transparent 50%), linear-gradient(180deg, #0F1714 0%, #0B0F0C 60%)' }}
       className="min-h-screen flex flex-col items-center justify-center px-6 py-12"
     >
-      <div className="w-full mb-10 flex justify-center">
+      <div className="w-full mb-10 flex justify-center" style={{ filter: 'brightness(0) invert(1)' }}>
         <Logo size="md" />
       </div>
 
@@ -148,38 +148,38 @@ export default function CheckoutSuccess() {
           animate={{ scale: 1 }}
           transition={{ type: 'spring', damping: 10, delay: 0.1 }}
           className="w-24 h-24 mx-auto rounded-full flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(168,213,162,0.2)' }}
+          style={{ background: 'linear-gradient(135deg, #0E4D2B, #5FBE7E)', boxShadow: '0 0 30px rgba(95,190,126,.30)' }}
         >
-          <CheckCircle2 className="w-14 h-14" style={{ color: '#a8d5a2' }} />
+          <CheckCircle2 className="w-14 h-14" style={{ color: '#F4EFE3' }} />
         </motion.div>
 
         {/* Headline + body by phase */}
         {phase === 'checking' && (
           <div className="space-y-3">
-            <h1 className="text-3xl font-black text-white leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+            <h1 className="cut-headline text-3xl leading-tight" style={{ color: '#F4EFE3' }}>
               You're in. Welcome to Caddie AI.
             </h1>
-            <p className="text-white/60 text-sm leading-relaxed">Your payment was received.</p>
+            <p className="text-cut-ink-soft text-sm leading-relaxed">Your payment was received.</p>
           </div>
         )}
 
         {phase === 'activating' && (
           <div className="space-y-4">
-            <h1 className="text-3xl font-black text-white leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+            <h1 className="cut-headline text-3xl leading-tight" style={{ color: '#F4EFE3' }}>
               You're in. Welcome to Caddie AI.
             </h1>
-            <p className="text-white/60 text-sm leading-relaxed">
+            <p className="text-cut-ink-soft text-sm leading-relaxed">
               Activating your subscription… we'll take you to your account in a moment.
             </p>
             <div className="flex justify-center pt-2">
-              <div className="w-6 h-6 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(244,239,227,.15)', borderTopColor: '#5FBE7E' }} />
             </div>
           </div>
         )}
 
         {phase === 'ready' && (
           <div className="space-y-3">
-            <h1 className="text-3xl font-black text-white leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+            <h1 className="cut-headline text-3xl leading-tight" style={{ color: '#F4EFE3' }}>
               All set. Taking you in…
             </h1>
           </div>
@@ -188,23 +188,23 @@ export default function CheckoutSuccess() {
         {phase === 'manual' && (
           <>
             <div className="space-y-3">
-              <h1 className="text-3xl font-black text-white leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+              <h1 className="cut-headline text-3xl leading-tight" style={{ color: '#F4EFE3' }}>
                 You're in. Welcome to Caddie AI.
               </h1>
-              <p className="text-white/60 text-sm leading-relaxed">
+              <p className="text-cut-ink-soft text-sm leading-relaxed">
                 Your payment was received. Tap below to continue.
               </p>
             </div>
-            <div className="h-px w-full" style={{ backgroundColor: 'rgba(168,213,162,0.3)' }} />
+            <div className="h-px w-full" style={{ backgroundColor: 'rgba(244,239,227,.10)' }} />
             <div className="space-y-4">
               <a
                 href="/"
                 className="w-full block py-4 rounded-full font-bold text-base text-center transition-all active:scale-95"
-                style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+                style={{ backgroundColor: '#5FBE7E', color: '#0B0F0C', boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
               >
                 Continue to Caddie AI →
               </a>
-              <p className="text-white/40 text-xs text-center">
+              <p className="text-cut-ink-mute text-xs text-center">
                 If you're not redirected, your subscription is still active — just continue above.
               </p>
             </div>
@@ -214,36 +214,36 @@ export default function CheckoutSuccess() {
         {phase === 'unauth' && (
           <>
             <div className="space-y-3">
-              <h1 className="text-3xl font-black text-white leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+              <h1 className="cut-headline text-3xl leading-tight" style={{ color: '#F4EFE3' }}>
                 You're in. Welcome to Caddie AI.
               </h1>
-              <p className="text-white/60 text-sm leading-relaxed">
+              <p className="text-cut-ink-soft text-sm leading-relaxed">
                 Your payment was received. Sign in to access your account.
               </p>
             </div>
-            <div className="h-px w-full" style={{ backgroundColor: 'rgba(168,213,162,0.3)' }} />
+            <div className="h-px w-full" style={{ backgroundColor: 'rgba(244,239,227,.10)' }} />
             <div className="space-y-4">
               <a
                 href="/signin"
                 className="w-full block py-4 rounded-full font-bold text-base text-center transition-all active:scale-95"
-                style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+                style={{ backgroundColor: '#5FBE7E', color: '#0B0F0C', boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
               >
                 Sign In to Caddie AI →
               </a>
-              <p className="text-white/40 text-xs text-center">Sign in with the email you used at checkout.</p>
+              <p className="text-cut-ink-mute text-xs text-center">Sign in with the email you used at checkout.</p>
             </div>
           </>
         )}
 
-        <p className="text-white/40 text-xs">
+        <p className="text-cut-ink-mute text-xs">
           Questions? Email us at{' '}
-          <a href="mailto:support@caddieaiapp.com" className="underline" style={{ color: '#a8d5a2' }}>
+          <a href="mailto:support@caddieaiapp.com" className="underline" style={{ color: '#5FBE7E' }}>
             support@caddieaiapp.com
           </a>
         </p>
 
         {sessionId && phase === 'manual' && (
-          <p className="text-white/30 text-[10px] mt-4 break-all">Reference: {sessionId}</p>
+          <p className="text-cut-ink-mute text-[10px] mt-4 break-all">Reference: {sessionId}</p>
         )}
       </motion.div>
     </div>

@@ -2,15 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser, invokeLLM } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { SESSION_TYPE_COLORS } from '@/lib/sessionTypeColors';
+import { RefreshCw, ChevronDown, ChevronUp, Check, Dumbbell, Flag, Target, Leaf } from 'lucide-react';
 import { getDrillClub, getDrillByName } from '@/lib/drillLibrary';
+import { isRestSession } from '@/lib/sessionUtils';
 import { buildPlanPrompt, PLAN_JSON_SCHEMA } from '@/lib/planGenerator';
 import CoachBriefing from '@/components/session/CoachBriefing';
 import ActiveSessionMode from '@/components/session/ActiveSessionMode';
 import SessionCelebration from '@/components/session/SessionCelebration';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function SessionTypeIcon({ type, className, strokeWidth = 2 }) {
+  const Icon =
+    /fitness/i.test(type) ? Dumbbell :
+    /putt|short/i.test(type) ? Flag :
+    /rest/i.test(type) ? Leaf :
+    Target;
+  return <Icon className={className} strokeWidth={strokeWidth} />;
+}
 
 function getWeekRange() {
   const today = new Date();
@@ -176,72 +185,106 @@ export default function MyPlan() {
     );
   }
 
+  const nonRestDays = sessions.filter(s => !isRestSession(s)).map(s => s.day);
+  const doneCount = new Set(completedDays.filter(d => nonRestDays.includes(d))).size;
+  const pctComplete = nonRestDays.length ? Math.round((doneCount / nonRestDays.length) * 100) : 0;
+  const maxMinutes = Math.max(...sessions.map(s => (isRestSession(s) ? 0 : s.duration || 45)), 60);
+
   return (
     <>
       <div className="px-5 pt-5 pb-6 space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        {/* Header — serif over eyebrow, mono % complete on the right */}
+        <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-3xl font-black text-foreground" style={{ letterSpacing: '-0.5px' }}>My Plan</h1>
-            <p className="text-muted-foreground text-xs mt-0.5">{getWeekRange()}</p>
+            <p className="cut-eyebrow text-cut-ink-mute">Week of {getWeekRange()}</p>
+            <h1 className="cut-headline text-cut-ink text-[30px] mt-1">
+              Your <span className="italic text-cut-green">plan</span>.
+            </h1>
           </div>
-          <button
-            onClick={handleGeneratePlan}
-            disabled={generating}
-            className="flex items-center gap-1.5 bg-muted px-3 py-2 rounded-xl text-sm font-semibold text-foreground active:scale-95 transition-all disabled:opacity-60"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${generating ? 'animate-spin' : ''}`} />
-            {generating ? 'Generating...' : 'New Plan'}
-          </button>
+          {sessions.length > 0 && (
+            <div className="text-right">
+              <p className="font-mono text-2xl font-bold text-cut-ink leading-none" style={{ letterSpacing: '-1px' }}>
+                {pctComplete}<span className="text-cut-ink-mute">%</span>
+              </p>
+              <p className="cut-eyebrow text-cut-ink-mute mt-1">Complete</p>
+            </div>
+          )}
         </div>
 
-        {/* Day dots strip */}
+        {/* progress bar */}
         {sessions.length > 0 && (
-          <div className="flex gap-2 justify-between">
-            {DAYS_OF_WEEK.map(day => {
-              const session = sessions.find(s => s.day === day);
-              const isToday = day === todayName;
-              const isDone = completedDays.includes(day);
-              const isRest = session?.session_type === 'Rest & Recovery' || !session;
-              const color = session ? SESSION_TYPE_COLORS[session.session_type]?.hex : null;
+          <div className="h-1 rounded-sm overflow-hidden" style={{ background: 'rgba(244,239,227,.08)' }}>
+            <div
+              className="h-full rounded-sm bg-cut-green transition-all"
+              style={{ width: `${pctComplete}%`, boxShadow: '0 0 10px rgba(95,190,126,.30)' }}
+            />
+          </div>
+        )}
 
-              return (
-                <div key={day} className="flex flex-col items-center gap-1">
-                  <span className={`text-[10px] font-bold ${isToday ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {day.slice(0, 1)}
-                  </span>
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                      isToday ? 'ring-2 ring-foreground ring-offset-1' : ''
-                    }`}
-                    style={{
-                      backgroundColor: isDone ? color || '#a8d5a2' : isRest ? 'hsl(var(--muted))' : `${color}33` || 'hsl(var(--muted))',
-                    }}
-                  >
-                    {isDone ? (
-                      <span className="text-[10px] text-white font-black">✓</span>
-                    ) : isRest ? (
-                      <span className="text-[10px]">🌿</span>
-                    ) : (
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                    )}
+        {/* Week strip — minute bars in glass */}
+        {sessions.length > 0 && (
+          <div className="cut-glass p-4 flex items-center justify-between gap-2">
+            <div className="flex justify-between items-end gap-1.5 w-full" style={{ height: 82 }}>
+              {DAYS_OF_WEEK.map(day => {
+                const session = sessions.find(s => s.day === day);
+                const isToday = day === todayName;
+                const isDone = completedDays.includes(day);
+                const minutes = session && !isRestSession(session) ? (session.duration || 45) : 0;
+                const h = Math.max((minutes / maxMinutes) * 50, 4);
+                return (
+                  <div key={day} className="flex-1 flex flex-col items-center gap-1.5">
+                    <div
+                      className="w-full relative rounded-[3px]"
+                      style={{
+                        height: h,
+                        background: isToday ? '#5FBE7E' : isDone ? '#0E4D2B' : 'rgba(244,239,227,.08)',
+                        boxShadow: isToday ? '0 0 10px rgba(95,190,126,.30)' : 'none',
+                      }}
+                    >
+                      {isDone && !isToday && (
+                        <div className="absolute inset-0 flex items-center justify-center text-cut-green">
+                          <Check className="w-2.5 h-2.5" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-[9px] font-bold ${isToday ? 'text-cut-green' : 'text-cut-ink-mute'}`} style={{ letterSpacing: '0.8px' }}>
+                      {day.slice(0, 1)}
+                    </span>
+                    <span className={`font-mono text-[10px] font-semibold ${minutes === 0 ? 'text-cut-ink-mute' : 'text-cut-ink'}`}>
+                      {minutes || '—'}
+                    </span>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Sessions header row */}
+        {sessions.length > 0 && (
+          <div className="flex items-center justify-between px-1.5 -mb-1">
+            <p className="cut-eyebrow text-cut-ink-mute">Sessions</p>
+            <button
+              onClick={handleGeneratePlan}
+              disabled={generating}
+              className="flex items-center gap-1.5 text-xs font-semibold text-cut-green active:scale-95 transition-all disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3 h-3 ${generating ? 'animate-spin' : ''}`} />
+              {generating ? 'Generating...' : 'New Plan'}
+            </button>
           </div>
         )}
 
         {/* No plan state */}
         {sessions.length === 0 && (
-          <div className="rounded-3xl p-8 text-center space-y-4" style={{ backgroundColor: '#1a2e1a' }}>
-            <p className="text-white text-xl font-black">No plan yet</p>
-            <p className="text-white/60 text-sm">Generate a personalized weekly practice plan.</p>
+          <div className="cut-glass p-8 text-center space-y-4">
+            <p className="cut-headline text-cut-ink text-xl">No plan yet</p>
+            <p className="text-cut-ink-mute text-sm">Generate a personalized weekly practice plan.</p>
             <button
               onClick={handleGeneratePlan}
               disabled={generating}
-              className="px-6 py-3 rounded-2xl font-bold text-sm active:scale-95 transition-all disabled:opacity-60"
-              style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+              className="px-6 py-3 rounded-2xl font-bold text-sm active:scale-95 transition-all disabled:opacity-60 bg-cut-green text-cut-bg"
+              style={{ boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
             >
               {generating ? 'Generating...' : 'Generate Plan'}
             </button>
@@ -249,61 +292,65 @@ export default function MyPlan() {
         )}
 
         {/* Session cards */}
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {DAYS_OF_WEEK.map(day => {
             const session = sessions.find(s => s.day === day);
             if (!session) return null;
 
             const isToday = day === todayName;
             const isDone = completedDays.includes(day);
-            const isRest = session.session_type === 'Rest & Recovery';
+            const isRest = isRestSession(session);
             const isExpanded = expandedDay === day;
-            const colors = SESSION_TYPE_COLORS[session.session_type] || SESSION_TYPE_COLORS['Rest & Recovery'];
             const drills = session.drills || [];
 
             return (
               <div
                 key={day}
-                className={`rounded-2xl overflow-hidden transition-all ${
-                  isToday ? 'ring-2 ring-foreground/20' : ''
-                }`}
+                className="cut-glass overflow-hidden transition-all"
                 style={{
-                  backgroundColor: isToday ? '#1a2e1a' : 'hsl(var(--card))',
-                  border: isToday ? 'none' : '0.5px solid hsl(var(--border))',
+                  border: isToday ? '1.5px solid #5FBE7E' : '1px solid rgba(244,239,227,.10)',
+                  opacity: isDone && !isExpanded ? 0.55 : 1,
                 }}
               >
                 {/* Card header */}
                 <button
                   onClick={() => setExpandedDay(isExpanded ? null : day)}
-                  className="w-full flex items-center justify-between p-4 active:opacity-80 transition-all"
+                  className="w-full flex items-center gap-3 p-3.5 active:opacity-80 transition-all"
                 >
-                  <div className="flex items-center gap-3">
-                    {/* Day label */}
-                    <div className="text-left">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-sm font-bold ${isToday ? 'text-white' : 'text-foreground'}`}>
-                          {day}
-                          {isToday && <span className="ml-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}>TODAY</span>}
-                        </p>
-                        {isDone && <span className="text-xs" style={{ color: '#a8d5a2' }}>✓ Done</span>}
-                      </div>
-                      <p className={`text-xs mt-0.5 ${isToday ? 'text-white/60' : 'text-muted-foreground'}`}>
-                        {session.session_type}
-                        {!isRest && ` · ${session.duration || 45}m`}
-                      </p>
-                    </div>
+                  {/* Type icon tile */}
+                  <div
+                    className="w-11 h-11 rounded-[14px] flex items-center justify-center flex-shrink-0"
+                    style={
+                      isDone
+                        ? { background: 'rgba(95,190,126,.12)', color: '#5FBE7E' }
+                        : isToday
+                          ? { background: '#5FBE7E', color: '#0B0F0C', boxShadow: '0 0 18px rgba(95,190,126,.30)' }
+                          : { background: '#141A17', color: 'rgba(244,239,227,.72)', border: '1px solid rgba(244,239,227,.08)' }
+                    }
+                  >
+                    {isDone
+                      ? <Check className="w-5 h-5" strokeWidth={2.6} />
+                      : <SessionTypeIcon type={session.session_type} className="w-[18px] h-[18px]" />}
+                  </div>
+
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className={`cut-eyebrow ${isToday ? 'text-cut-green' : 'text-cut-ink-mute'}`}>
+                      {day}{isToday && ' · Today'}{isDone && ' · Done'}
+                    </p>
+                    <p className={`cut-headline text-base text-cut-ink mt-0.5 truncate ${isDone ? 'line-through' : ''}`}>
+                      {isRest ? 'Rest & Recovery' : (session.title || session.session_type)}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {!isRest && (
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: colors.hex }}
-                      />
+                      <p className="font-mono text-lg font-bold text-cut-ink" style={{ letterSpacing: '-0.5px' }}>
+                        {session.duration || 45}<span className="text-[10px] text-cut-ink-mute font-semibold">m</span>
+                      </p>
                     )}
                     {isExpanded
-                      ? <ChevronUp className={`w-4 h-4 ${isToday ? 'text-white/60' : 'text-muted-foreground'}`} />
-                      : <ChevronDown className={`w-4 h-4 ${isToday ? 'text-white/60' : 'text-muted-foreground'}`} />
+                      ? <ChevronUp className="w-4 h-4 text-cut-ink-mute" />
+                      : <ChevronDown className="w-4 h-4 text-cut-ink-mute" />
                     }
                   </div>
                 </button>
@@ -320,7 +367,7 @@ export default function MyPlan() {
                     >
                       <div className="px-4 pb-4 space-y-3">
                         {isRest ? (
-                          <p className={`text-sm ${isToday ? 'text-white/60' : 'text-muted-foreground'}`}>
+                          <p className="text-sm text-cut-ink-mute">
                             Rest and recovery day. Let your body repair and come back stronger.
                           </p>
                         ) : (
@@ -333,25 +380,21 @@ export default function MyPlan() {
                                 const description = drill.description || drillData?.description;
                                 return (
                                   <div key={i} className="flex items-start gap-2.5">
-                                    <div
-                                      className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                                      style={{ backgroundColor: colors.hex }}
-                                    />
+                                    <span className="font-mono text-[10px] font-bold text-cut-green mt-1">
+                                      {String(i + 1).padStart(2, '0')}
+                                    </span>
                                     <div>
-                                      <p className={`text-sm font-semibold leading-snug ${isToday ? 'text-white' : 'text-foreground'}`}>
+                                      <p className="text-sm font-semibold leading-snug text-cut-ink">
                                         {drill.name}
                                       </p>
                                       {description && (
-                                        <p className={`text-xs leading-snug mt-0.5 ${isToday ? 'text-white/60' : 'text-muted-foreground'}`}>
+                                        <p className="text-xs leading-snug mt-0.5 text-cut-ink-mute">
                                           {description}
                                         </p>
                                       )}
                                       {club && (
-                                        <span
-                                          className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1"
-                                          style={{ backgroundColor: `${colors.hex}22`, color: colors.hex }}
-                                        >
-                                          🏌️ {club}
+                                        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 bg-cut-gold-soft text-cut-gold">
+                                          {club}
                                         </span>
                                       )}
                                     </div>
@@ -364,15 +407,15 @@ export default function MyPlan() {
                             {!isDone ? (
                               <button
                                 onClick={() => handleStartSession(session)}
-                                className="w-full py-3.5 rounded-2xl text-sm font-bold mt-2 active:scale-95 transition-all"
-                                style={{ backgroundColor: colors.hex, color: 'white' }}
+                                className="w-full py-3.5 rounded-[14px] text-sm font-bold mt-2 active:scale-95 transition-all bg-cut-green text-cut-bg"
+                                style={{ boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
                               >
                                 {isToday ? 'Start Session →' : 'Preview Session →'}
                               </button>
                             ) : (
                               <div
-                                className="w-full py-3.5 rounded-2xl text-sm font-bold text-center"
-                                style={{ backgroundColor: 'rgba(168,213,162,0.15)', color: '#a8d5a2' }}
+                                className="w-full py-3.5 rounded-[14px] text-sm font-bold text-center"
+                                style={{ backgroundColor: 'rgba(95,190,126,.12)', color: '#5FBE7E' }}
                               >
                                 ✓ Session Complete
                               </div>

@@ -67,7 +67,7 @@ export default function ProFeatureGateModal({ visible, onDismiss, onRestoreSucce
                 onClick={handleRestoreAccess}
                 disabled={restoring}
                 className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#a8d5a2', color: '#1a3d1a' }}
+                style={{ backgroundColor: '#5FBE7E', color: '#1a3d1a' }}
               >
                 {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {restoring ? 'Checking...' : 'Restore Access'}

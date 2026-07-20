@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, LineChart } from 'lucide-react';
+import CutEmptyCard from '@/components/ui/CutEmptyCard';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/ui/PullToRefreshIndicator';
 import { format } from 'date-fns';
@@ -261,7 +262,6 @@ export default function Progress() {
         ref={containerRef}
         className="px-4 pt-5 pb-8 space-y-4 relative"
         style={{
-          background: '#0a0a0a',
           minHeight: '100vh',
           transform: `translateY(${pullDistance}px)`,
           transition: pullDistance === 0 ? 'transform 0.3s ease' : 'none',
@@ -269,22 +269,37 @@ export default function Progress() {
       >
         <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
 
-        {/* Header */}
-        <div className="flex items-center justify-between pt-1">
+        {/* Header — "Nothing to show — yet." before any activity, per the
+            empty-states mock */}
+        <div className="flex items-end justify-between pt-1">
           <div>
-            <h1 className="text-3xl font-black text-white" style={{ letterSpacing: '-0.5px', fontFamily: 'Fraunces, Georgia, serif' }}>Progress</h1>
-            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>Performance Dashboard</p>
+            <p className="cut-eyebrow text-cut-ink-mute">{rounds.length === 0 && sessions.length === 0 ? 'Progress' : 'Performance Dashboard'}</p>
+            <h1 className="cut-headline text-cut-ink text-[28px] mt-1">
+              {rounds.length === 0 && sessions.length === 0
+                ? <>Nothing to show — <span className="italic text-cut-green">yet</span>.</>
+                : <>Your <span className="italic text-cut-green">progress</span>.</>}
+            </h1>
           </div>
           <button
             onClick={handleLogRoundClick}
-            className="flex items-center gap-1.5 font-bold text-sm px-4 py-2.5 rounded-full active:scale-95 transition-all"
-            style={{ background: '#a8d5a2', color: '#0a0a0a' }}
+            className="flex items-center gap-1.5 font-bold text-sm px-4 py-2.5 rounded-full active:scale-95 transition-all bg-cut-green text-cut-bg mb-1 flex-shrink-0 whitespace-nowrap"
+            style={{ boxShadow: '0 0 18px rgba(95,190,126,.30)' }}
           >
             <Plus className="w-4 h-4" />
             Log Round
           </button>
         </div>
 
+        {rounds.length === 0 && sessions.length === 0 ? (
+          <div className="pt-3">
+            <CutEmptyCard
+              icon={LineChart}
+              title="Charts unlock after round 1"
+              body="Handicap trend, scoring, and drill streaks all build from real rounds and sessions."
+            />
+          </div>
+        ) : (
+        <>
         {/* S1 — Handicap Hero */}
         {profile && <HandicapHero profile={profile} />}
 
@@ -307,11 +322,8 @@ export default function Progress() {
         <RecentRounds rounds={rounds} profile={profile} />
 
         {/* S8 — Badges */}
-        <div
-          className="p-5 space-y-4"
-          style={{ background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.4)' }}>Badges</p>
+        <div className="cut-glass p-5 space-y-4">
+          <p className="cut-eyebrow text-cut-ink-mute">Badges</p>
           <BadgeGrid earnedBadges={badges} />
         </div>
 
@@ -329,6 +341,8 @@ export default function Progress() {
               <CompetitorIntel />
             </ProGate>
           </>
+        )}
+        </>
         )}
       </div>
 

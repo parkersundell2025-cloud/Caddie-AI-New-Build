@@ -19,7 +19,7 @@ export default function TrialExpiredModal({ profile }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center px-6"
-         style={{ backgroundColor: '#1a2e1a' }}>
+         style={{ backgroundColor: '#0F1714' }}>
       <div className="w-full max-w-sm mx-auto space-y-8 text-center">
         <div className="flex justify-center" style={{ filter: 'brightness(0) invert(1)' }}>
           <Logo size="md" />
@@ -37,14 +37,14 @@ export default function TrialExpiredModal({ profile }) {
         <button
           onClick={() => navigate('/subscribe-now')}
           className="w-full py-4 rounded-full font-bold text-base transition-all active:scale-95"
-          style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+          style={{ backgroundColor: '#5FBE7E', color: '#0F1714' }}
         >
           View Plans →
         </button>
 
         <p className="text-white/40 text-xs">
           Questions? Email{' '}
-          <a href="mailto:support@caddieaiapp.com" className="underline" style={{ color: '#a8d5a2' }}>
+          <a href="mailto:support@caddieaiapp.com" className="underline" style={{ color: '#5FBE7E' }}>
             support@caddieaiapp.com
           </a>
         </p>

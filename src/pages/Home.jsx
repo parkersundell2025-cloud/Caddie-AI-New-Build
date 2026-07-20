@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
-import { MessageCircle, Target, Plus, X } from 'lucide-react';
-import { formatHandicap } from '@/lib/handicapUtils';
+import { Sparkles, Target, Play, Flag, CalendarDays } from 'lucide-react';
+import CutEmptyCard from '@/components/ui/CutEmptyCard';
 import { getDrillClub } from '@/lib/drillLibrary';
+import { isRestSession } from '@/lib/sessionUtils';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import TrialEndingBanner from '@/components/trial/TrialEndingBanner';
 import TrialExpiredModal from '@/components/trial/TrialExpiredModal';
@@ -19,7 +20,6 @@ import ThisWeekStrip from '@/components/home/ThisWeekStrip';
 import QuickStatsRow from '@/components/home/QuickStatsRow';
 import LeaderboardWidget from '@/components/home/LeaderboardWidget';
 import WeeklyGoalRings from '@/components/home/WeeklyGoalRings';
-import { getSessionTypeColor } from '@/lib/sessionTypeColors';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -38,6 +38,8 @@ export default function Home() {
   const [showLogRound, setShowLogRound] = useState(false);
   const [loading, setLoading] = useState(true);
   const [celebration, setCelebration] = useState(null);
+  // Defaults true so returning users never flash the first-week empty cards
+  const [hasActivity, setHasActivity] = useState(true);
 
   const today = new Date();
   // Use locale-aware date string to get the correct local date (avoids UTC offset issues)
@@ -52,15 +54,18 @@ export default function Home() {
   const loadData = async () => {
     const u = await getCurrentUser();
     setUser(u);
-    const [profiles, plans, logs] = await Promise.all([
+    const [profiles, plans, logs, anyRound, anySession] = await Promise.all([
       unwrap(supabase.from('user_profile').select('*').eq('user_email', u.email)),
       unwrap(supabase.from('practice_plan').select('*').eq('user_email', u.email).eq('is_active', true)),
       unwrap(supabase.from('session_log').select('*').eq('user_email', u.email).eq('session_date', todayStr)),
+      unwrap(supabase.from('round').select('id').eq('user_email', u.email).limit(1)),
+      unwrap(supabase.from('session_log').select('id').eq('user_email', u.email).eq('completed', true).limit(1)),
     ]);
     const prof = profiles[0] || null;
     setProfile(prof);
     setPlan(plans[0] || null);
     setCompletedToday(logs.some(l => l.completed));
+    setHasActivity(anyRound.length > 0 || anySession.length > 0);
     setLoading(false);
   };
 
@@ -121,7 +126,7 @@ export default function Home() {
     supabase.functions.invoke('checkBadges', { body: {} }).catch(() => {});
     // Update streak
     let newStreak = profile?.streak_days || 0;
-    if (profile && !wasAlreadyCompleted && session && session.session_type !== 'Rest & Recovery') {
+    if (profile && !wasAlreadyCompleted && session && !isRestSession(session)) {
       const lastDate = profile.last_session_date;
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -202,16 +207,29 @@ export default function Home() {
     <><div ref={containerRef} className="px-5 pt-5 pb-6 space-y-6 relative overflow-y-auto" style={{ transform: `translateY(${pullDistance}px)`, transition: pullDistance === 0 ? 'transform 0.3s ease' : 'none' }}>
       <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
       
-      {/* Header */}
-      <div>
-        <p className="text-muted-foreground text-sm tracking-wide">{getGreeting()},</p>
-        <h1 className="text-3xl font-black text-foreground tracking-tight" style={{ letterSpacing: '-0.5px' }}>
-          {profile?.first_name || 'Golfer'} 👋
-        </h1>
-        <p className="text-muted-foreground text-xs mt-1">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </p>
-      </div>
+      {/* Header — editorial serif over eyebrow date; first-week variant
+          per the empty-states mock */}
+      {plan && !hasActivity ? (
+        <div>
+          <p className="cut-eyebrow text-cut-ink-mute">Welcome</p>
+          <h1 className="cut-headline text-cut-ink text-[30px] leading-[1.08] mt-2">
+            Hi {profile?.first_name || 'Golfer'}. Let's <span className="italic text-cut-green">log your first one</span>.
+          </h1>
+          <p className="text-cut-ink-mute text-sm mt-2 leading-relaxed">
+            Your plan is ready — nothing logged yet. Play a round or run a drill and Caddie starts learning your game.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <p className="cut-eyebrow text-cut-ink-mute">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+          <h1 className="cut-headline text-cut-ink text-[32px] leading-[1.05] mt-2">
+            {getGreeting()},<br />
+            <span className="italic text-cut-green">{profile?.first_name || 'Golfer'}</span>.
+          </h1>
+        </div>
+      )}
 
       {/* Trial / subscription state banners — each one self-gates on the
           relevant subscription_status, so it's safe to render all of them
@@ -220,121 +238,163 @@ export default function Home() {
       <SubscriptionBanner profile={profile} />
       <TrialEndingBanner profile={profile} />
 
-      {/* Today's Focus Card */}
+      {/* Today's Focus Card — glass hero with topo header */}
       {!plan ? (
-        <div className="rounded-3xl p-6 text-center space-y-4" style={{ backgroundColor: '#1a2e1a' }}>
-          <p className="text-white text-lg font-black">Generate your first practice plan</p>
-          <p className="text-white/60 text-sm">Create a personalized weekly schedule tailored to your game.</p>
+        <div className="cut-glass p-6 text-center space-y-4">
+          <p className="cut-headline text-cut-ink text-xl">Generate your first practice plan</p>
+          <p className="text-cut-ink-mute text-sm">Create a personalized weekly schedule tailored to your game.</p>
           <Link
             to="/plan"
-            className="inline-block px-6 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95"
-            style={{ backgroundColor: '#a8d5a2', color: '#1a2e1a' }}
+            className="inline-block px-6 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 bg-cut-green text-cut-bg"
+            style={{ boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
           >
             Create Plan →
           </Link>
         </div>
-      ) : todaySession && todaySession.session_type !== 'Rest & Recovery' ? (
+      ) : !hasActivity ? (
+        /* First week, plan generated but nothing logged — empty-states mock */
         (() => {
-          // Use the safe-fallback lookup helper rather than direct
-          // SESSION_TYPE_COLORS[] access — when the plan was authored by the
-          // LLM with a session_type variant that isn't one of the four known
-          // keys (typo, new category, missing value), direct lookup returns
-          // undefined and `.hex` crashes the whole tree, leaving the user on
-          // a blank screen with a console error. getSessionTypeColor falls
-          // back to the 'Rest & Recovery' palette which is at least visible.
-          const sessionColors = getSessionTypeColor(todaySession.session_type);
+          const sessions = plan.plan_data?.sessions || [];
+          const working = sessions.filter(s => !isRestSession(s));
+          const drillCount = working.reduce((a, s) => a + (s.drills?.length || 0), 0);
+          const firstDuration = (!isRestSession(todaySession) ? todaySession : working[0])?.duration || 45;
           return (
-        <div className="rounded-3xl p-6 space-y-5 cursor-pointer active:scale-[0.99] transition-all" style={{ backgroundColor: '#1a2e1a' }} onClick={() => navigate('/plan')}>
-          <div className="space-y-2">
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full inline-block" style={{ backgroundColor: sessionColors.hex, color: 'white' }}>
-              {todaySession.session_type}
-            </span>
-            <p className="text-white/50 text-xs tracking-wide">{todaySession.duration || 45} MIN</p>
-            <h3 className="text-white text-2xl font-black leading-tight" style={{ letterSpacing: '-0.5px' }}>{todaySession.title || "Today's Session"}</h3>
+            <div className="space-y-3">
+              <CutEmptyCard
+                icon={Flag}
+                title="No rounds yet"
+                body="Log your first round to start tracking fairways, greens, and putts."
+                cta="Log a round"
+                onCta={() => navigate('/progress', { state: { openLogRound: true } })}
+              />
+              <CutEmptyCard
+                icon={CalendarDays}
+                title="No sessions yet"
+                body={drillCount > 0
+                  ? `Your plan has ${drillCount} drill${drillCount === 1 ? '' : 's'} queued this week — first session's ${firstDuration} minutes.`
+                  : 'Your weekly plan is ready when you are.'}
+                cta="Start today's session"
+                onCta={() => navigate('/plan')}
+              />
+            </div>
+          );
+        })()
+      ) : todaySession && !isRestSession(todaySession) ? (
+        <div className="cut-glass overflow-hidden cursor-pointer active:scale-[0.99] transition-all" onClick={() => navigate('/plan')}>
+          {/* topo image header */}
+          <div className="relative min-h-[110px] overflow-hidden pb-3.5 pt-9" style={{ background: 'linear-gradient(135deg, #0E4D2B 0%, #1A6B3F 100%)' }}>
+            <svg width="100%" height="100%" viewBox="0 0 360 110" preserveAspectRatio="none" className="absolute inset-0 opacity-25">
+              {[14, 28, 42, 56, 70, 84, 98].map((y, i) => (
+                <path key={i} d={`M0 ${y} Q90 ${y - 8 - (i % 2) * 4} 180 ${y} T360 ${y}`} stroke="#F4EFE3" strokeWidth="1" fill="none" />
+              ))}
+            </svg>
+            <p className="cut-eyebrow text-cut-gold absolute top-3.5 left-[18px]">{todaySession.session_type}</p>
+            <div className="relative flex items-end justify-between px-[18px] gap-3">
+            <div className="text-cut-cream" style={{ maxWidth: '70%' }}>
+              <h3 className="cut-headline text-[24px] leading-[1.05]">{todaySession.title || "Today's Session"}</h3>
+              {(todaySession.drills || []).length > 0 && (
+                <p className="mt-1 text-xs font-medium" style={{ color: 'rgba(244,239,227,.75)' }}>
+                  {(todaySession.drills || []).length} drill{(todaySession.drills || []).length === 1 ? '' : 's'}
+                </p>
+              )}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="font-mono text-[22px] font-bold text-cut-cream leading-none" style={{ letterSpacing: '-1px' }}>
+                {todaySession.duration || 45}:00
+              </p>
+              <p className="text-[9px] font-bold mt-0.5" style={{ color: 'rgba(244,239,227,.6)', letterSpacing: '1.2px' }}>EST.</p>
+            </div>
+            </div>
           </div>
 
-          {/* Drills list - max 3 shown */}
-          <div className="space-y-2.5">
-            {(todaySession.drills || []).slice(0, 3).map((drill, i) => {
+          {/* numbered drill chips */}
+          <div className="px-4 pt-3.5 flex gap-1.5 flex-wrap">
+            {(todaySession.drills || []).map((drill, i) => {
               const club = drill.club || getDrillClub(drill.name);
-              const dotColor = sessionColors.dot;
               return (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: dotColor }} />
-                  <div>
-                    <p className="text-white/75 text-sm leading-snug">{drill.name}</p>
-                    {club && (
-                      <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5" style={{ backgroundColor: `${dotColor}33`, color: dotColor }}>
-                        🏌️ {club}
-                      </span>
-                    )}
-                  </div>
+                <div key={i} className="px-2.5 py-1.5 rounded-full bg-cut-card-solid flex items-center gap-1.5 text-[11px] font-semibold text-cut-ink" style={{ border: '1px solid rgba(244,239,227,.08)' }}>
+                  <span className="font-mono text-cut-green text-[10px] font-bold">{String(i + 1).padStart(2, '0')}</span>
+                  <span>{drill.name}</span>
+                  {club && <span className="font-mono text-cut-ink-mute text-[10px]">{club}</span>}
                 </div>
               );
             })}
-            {(todaySession.drills || []).length > 3 && (
-              <p className="text-white/50 text-xs">+{(todaySession.drills || []).length - 3} more</p>
-            )}
           </div>
 
-          <button
-            onClick={(e) => { e.stopPropagation(); if (!completedToday) setShowLogger(true); }}
-            disabled={completedToday}
-            className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all ${
-              completedToday
-                ? 'bg-white/15 text-white/50 cursor-default'
-                : 'active:scale-95'
-            }`}
-            style={!completedToday ? { backgroundColor: sessionColors.hex, color: 'white' } : {}}
-          >
-            {completedToday ? '✓ Session Complete' : 'Start Session →'}
-          </button>
+          {/* Start button — neon edge */}
+          <div className="px-4 pt-3.5 pb-[18px]">
+            <button
+              onClick={(e) => { e.stopPropagation(); if (!completedToday) setShowLogger(true); }}
+              disabled={completedToday}
+              className={`w-full h-[50px] rounded-[14px] text-sm font-bold flex items-center justify-center gap-2.5 transition-all ${
+                completedToday
+                  ? 'bg-cut-card text-cut-ink-mute cursor-default'
+                  : 'bg-cut-green text-cut-bg active:scale-95'
+              }`}
+              style={!completedToday ? { boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' } : {}}
+            >
+              {completedToday ? (
+                '✓ Session Complete'
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />
+                  <span>Begin Session</span>
+                  <span className="opacity-60">→</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-          );
-        })()
       ) : (
-        <div className="rounded-3xl p-6" style={{ backgroundColor: '#1a2e1a' }}>
-          <h3 className="text-white text-xl font-black" style={{ letterSpacing: '-0.5px' }}>Rest Day 🌿</h3>
-          <p className="text-white/60 text-sm mt-2">Recovery is part of the plan.</p>
+        <div className="cut-glass p-6">
+          <h3 className="cut-headline text-cut-ink text-xl">Rest Day 🌿</h3>
+          <p className="text-cut-ink-mute text-sm mt-2">Recovery is part of the plan.</p>
         </div>
       )}
 
-      {/* This Week Strip */}
-      {user && <ThisWeekStrip userEmail={user.email} />}
+      {/* Zero-value widgets stay hidden during the first-week empty state,
+          per the empty-states mock — they all render as 0%/dashes until
+          something is logged */}
+      {hasActivity && (
+        <>
+          {/* This Week Strip */}
+          {user && <ThisWeekStrip userEmail={user.email} />}
 
-      {/* Leaderboard Widget */}
-      {user && <LeaderboardWidget userEmail={user.email} />}
+          {/* Leaderboard Widget */}
+          {user && <LeaderboardWidget userEmail={user.email} />}
 
-      {/* Weekly Goal Rings */}
-      {user && plan && <WeeklyGoalRings userEmail={user.email} plan={plan} />}
+          {/* Weekly Goal Rings */}
+          {user && plan && <WeeklyGoalRings userEmail={user.email} plan={plan} />}
 
-      {/* Coach Daily Insight */}
-      {user && <CoachDailyInsight userEmail={user.email} />}
+          {/* Coach Daily Insight */}
+          {user && <CoachDailyInsight userEmail={user.email} />}
 
-      {/* Quick Stats Row */}
-      {user && <QuickStatsRow userEmail={user.email} />}
+          {/* Quick Stats Row */}
+          {user && <QuickStatsRow userEmail={user.email} />}
+        </>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Link to="/coach" className="card-base p-5 flex items-center gap-3 active:scale-95 transition-all">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#a8d5a2' }}>
-            <MessageCircle className="w-4 h-4" style={{ color: '#1a2e1a' }} />
+        <Link to="/coach" className="cut-glass p-5 flex items-center gap-3 active:scale-95 transition-all">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-cut-green text-cut-bg">
+            <Sparkles className="w-4 h-4" strokeWidth={2} />
           </div>
           <div>
-            <p className="text-sm font-bold text-foreground">Coach</p>
-            <p className="text-[11px] text-muted-foreground">Ask anything</p>
+            <p className="text-sm font-bold text-cut-ink">Caddie</p>
+            <p className="text-[11px] text-cut-ink-mute">Ask anything</p>
           </div>
         </Link>
         <button
           onClick={() => navigate('/progress', { state: { openLogRound: true } })}
-          className="card-base p-5 flex items-center gap-3 active:scale-95 transition-all text-left"
+          className="cut-glass p-5 flex items-center gap-3 active:scale-95 transition-all text-left"
         >
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#a8d5a2' }}>
-            <Target className="w-4 h-4" style={{ color: '#1a2e1a' }} />
+          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-cut-gold text-cut-bg">
+            <Target className="w-4 h-4" strokeWidth={2} />
           </div>
           <div>
-            <p className="text-sm font-bold text-foreground">Log Round</p>
-            <p className="text-[11px] text-muted-foreground">Track stats</p>
+            <p className="text-sm font-bold text-cut-ink">Log Round</p>
+            <p className="text-[11px] text-cut-ink-mute">Track stats</p>
           </div>
         </button>
       </div>

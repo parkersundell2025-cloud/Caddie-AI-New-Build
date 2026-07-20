@@ -10,7 +10,7 @@ function PercentileBar({ percentile }) {
       <div className="h-3 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${percentile}%`, backgroundColor: '#a8d5a2' }}
+          style={{ width: `${percentile}%`, backgroundColor: '#5FBE7E' }}
         />
       </div>
       <div className="flex justify-between text-[11px] text-muted-foreground">

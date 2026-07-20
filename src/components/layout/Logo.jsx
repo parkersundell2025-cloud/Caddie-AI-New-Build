@@ -42,15 +42,15 @@ export default function Logo({ size = 'md' }) {
       {/* Wordmark */}
       <div className="flex items-baseline gap-1">
         <span
-          className={`${c.caddie} font-bold leading-none text-foreground`}
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif', letterSpacing: '-0.02em' }}>
-          
+          className={`${c.caddie} font-medium leading-none text-foreground`}
+          style={{ fontFamily: '"Fraunces", Georgia, serif', letterSpacing: '-0.02em' }}>
+
           Caddie
         </span>
         <span
-          className={`${c.ai} font-light leading-none`}
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif', letterSpacing: '0.04em', color: 'hsl(var(--muted-foreground))' }}>
-          
+          className={`${c.ai} font-medium leading-none uppercase`}
+          style={{ fontFamily: '"Fraunces", Georgia, serif', letterSpacing: '0.04em', color: 'hsl(var(--muted-foreground))' }}>
+
           AI
         </span>
       </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser, invokeLLM } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Sparkles } from 'lucide-react';
 import { isCoachFreshOpen, markCoachAsOpened } from '@/lib/appSessionState';
 import { formatHandicap, isPlusHandicap } from '@/lib/handicapUtils';
 import { buildClubDistanceContext } from '@/lib/clubDistances';
@@ -370,6 +370,35 @@ Context signals: ${contextClues.join(', ')}
 Generate the opening message only. Nothing else.`;
 }
 
+// Full-area loading state from the "AI Loading" mock — shown from first
+// paint until the opening message lands (covers both context loading and
+// opening generation, so users never see a bare spinner)
+function ReadingCard({ hasRounds }) {
+  return (
+    <div className="h-full flex items-center justify-center">
+      <div className="cut-glass p-5 text-center" style={{ minWidth: 220 }}>
+        <div
+          className="absolute pointer-events-none"
+          style={{ top: -60, right: -60, width: 200, height: 200, borderRadius: 100, background: 'rgba(95,190,126,.30)', filter: 'blur(50px)' }}
+        />
+        <div className="relative">
+          <div className="flex justify-center gap-1.5 mb-3">
+            {[0.35, 0.6, 0.85].map((o, i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-cut-green animate-pulse"
+                style={{ opacity: o, boxShadow: '0 0 8px rgba(95,190,126,.30)', animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </div>
+          <p className="cut-headline italic text-cut-ink" style={{ fontSize: 14.5 }}>{hasRounds ? 'Reading your last round...' : 'Reading your game...'}</p>
+          <p className="text-[11px] text-cut-ink-mute mt-1">Usually takes a few seconds</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MessageBubble({ msg }) {
   const isUser = msg.role === 'user';
   return (
@@ -378,11 +407,14 @@ function MessageBubble({ msg }) {
       animate={{ opacity: 1, y: 0 }}
       className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
     >
-      <div className={`max-w-[82%] px-4 py-3 rounded-2xl text-sm leading-relaxed select-text ${
-        isUser
-          ? 'bg-foreground text-background rounded-br-sm'
-          : 'bg-card border border-border text-foreground rounded-bl-sm'
-      }`}>
+      <div
+        className={`px-4 py-3 text-sm leading-relaxed select-text ${
+          isUser
+            ? 'max-w-[78%] rounded-[18px] rounded-tr-md bg-cut-green text-cut-bg font-medium'
+            : 'max-w-[88%] rounded-[18px] rounded-tl-md cut-glass text-cut-ink'
+        }`}
+        style={isUser ? { boxShadow: '0 0 16px rgba(95,190,126,.30)' } : undefined}
+      >
         <p style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</p>
       </div>
     </motion.div>
@@ -576,8 +608,8 @@ export default function Coach() {
 
   if (initialLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-sage/30 border-t-foreground rounded-full animate-spin" />
+      <div className="h-full">
+        <ReadingCard hasRounds={!!contextData?.rounds?.length} />
       </div>
     );
   }
@@ -585,14 +617,20 @@ export default function Coach() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-5 pt-4 pb-4 flex items-center gap-3 flex-shrink-0 bg-background border-b border-border">
-        <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center">
-          <span className="text-background text-sm">🏌️</span>
+      <div className="px-5 pt-4 pb-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(244,239,227,.08)' }}>
+        <div
+          className="w-[42px] h-[42px] rounded-[14px] flex items-center justify-center text-cut-cream"
+          style={{ background: 'linear-gradient(135deg, #0E4D2B, #5FBE7E)', boxShadow: '0 0 18px rgba(95,190,126,.30)' }}
+        >
+          <span className="cut-headline italic text-xl">C</span>
         </div>
         <div>
-          <h1 className="font-black text-foreground text-lg" style={{ letterSpacing: '-0.5px' }}>Caddie AI Coach</h1>
-          <p className="text-muted-foreground text-xs">
-            {contextData?.isPro ? 'Pro Coach · Full history' : 'Always here to help your game'}
+          <h1 className="cut-headline text-cut-ink text-lg">Caddie</h1>
+          <p className="text-cut-ink-soft text-[11px] mt-0.5 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cut-green inline-block" style={{ boxShadow: '0 0 6px #5FBE7E' }} />
+            {contextData?.sessionLogs?.length
+              ? `Trained on ${contextData.sessionLogs.length} of your sessions`
+              : contextData?.isPro ? 'Pro Coach · Full history' : 'Always here to help your game'}
           </p>
         </div>
 
@@ -600,37 +638,62 @@ export default function Coach() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" style={{ overscrollBehavior: 'contain' }}>
-        <div ref={topRef} />
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} />
-        ))}
+        {generatingOpening && messages.length === 0 ? (
+          <ReadingCard hasRounds={!!contextData?.rounds?.length} />
+        ) : (
+          <>
+            <div ref={topRef} />
+            {messages.map((msg, i) => (
+              <MessageBubble key={i} msg={msg} />
+            ))}
 
-        {(loading || generatingOpening) && (
-          <div className="flex justify-start">
-            <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-4 py-3">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
-          </div>
+            {loading && (
+              <div className="flex justify-start">
+                <div className="cut-glass rounded-[18px] rounded-tl-md px-4 py-3 flex items-center gap-3">
+                  <div className="flex gap-1.5">
+                    {[0.35, 0.6, 0.85].map((o, i) => (
+                      <div
+                        key={i}
+                        className="w-2 h-2 rounded-full bg-cut-green animate-pulse"
+                        style={{ opacity: o, boxShadow: '0 0 8px rgba(95,190,126,.30)', animationDelay: `${i * 150}ms` }}
+                      />
+                    ))}
+                  </div>
+                  <span className="cut-headline italic text-[13px] text-cut-ink-soft">Thinking…</span>
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </>
         )}
-        <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-5 pt-3 pb-4 bg-background border-t border-border flex-shrink-0">
-        <div className="flex items-end gap-2">
+      {/* Input — glass composer pill */}
+      <div className="px-4 pt-3 pb-4 flex-shrink-0">
+        <div
+          className="flex items-center gap-2 rounded-3xl py-1.5 pl-4 pr-1.5"
+          style={{
+            background: 'rgba(244,239,227,.06)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(244,239,227,.10)',
+          }}
+        >
+          <Sparkles className="w-[15px] h-[15px] text-cut-gold flex-shrink-0" strokeWidth={2} />
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !loading && sendMessage()}
-            placeholder="Talk to your coach..."
-            className="flex-1 bg-muted rounded-2xl px-4 py-3 text-foreground text-sm outline-none focus:ring-2 focus:ring-sage border border-border"
+            placeholder="Ask Caddie anything…"
+            className="flex-1 bg-transparent py-2 text-cut-ink text-sm outline-none placeholder:italic placeholder:font-fraunces placeholder:text-cut-ink-mute"
           />
           <button
             onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
-            className="w-10 h-10 bg-foreground rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 active:scale-95 transition-all"
+            className="w-9 h-9 bg-cut-green text-cut-bg rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 active:scale-95 transition-all"
+            style={{ boxShadow: '0 0 14px rgba(95,190,126,.30)' }}
           >
-            <Send className="w-4 h-4 text-background" />
+            <Send className="w-4 h-4" />
           </button>
         </div>
       </div>

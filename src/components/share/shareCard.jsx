@@ -11,7 +11,7 @@ export async function generateRoundShareCard({ score, courseName, firstName, han
   const ctx = canvas.getContext('2d');
 
   // Background
-  ctx.fillStyle = '#0d1f16';
+  ctx.fillStyle = '#0B0F0C';
   ctx.fillRect(0, 0, 1080, 1920);
 
   // Subtle grass texture overlay
@@ -40,7 +40,7 @@ export async function generateRoundShareCard({ score, courseName, firstName, han
   // Course name (if provided)
   let heroBottom = 760;
   if (courseName) {
-    ctx.fillStyle = '#a8d5a2';
+    ctx.fillStyle = '#5FBE7E';
     ctx.font = '400 48px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(courseName, 540, 830);
@@ -60,7 +60,7 @@ export async function generateRoundShareCard({ score, courseName, firstName, han
   if (handicap != null) {
     const arrow = handicapImproved ? ' ↓' : '';
     const hcpText = `Handicap: ${handicap}${arrow}`;
-    ctx.fillStyle = handicapImproved ? '#a8d5a2' : 'rgba(255,255,255,0.85)';
+    ctx.fillStyle = handicapImproved ? '#5FBE7E' : 'rgba(255,255,255,0.85)';
     ctx.font = 'bold 50px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(hcpText, 540, statsY);
@@ -99,7 +99,7 @@ export async function generateRoundShareCard({ score, courseName, firstName, han
   ctx.fillText('Improve your game with AI coaching', 540, 1790);
 
   // App Store URL
-  ctx.fillStyle = '#a8d5a2';
+  ctx.fillStyle = '#5FBE7E';
   ctx.font = '400 30px Georgia, serif';
   ctx.textAlign = 'center';
   ctx.fillText(APP_STORE_URL, 540, 1840);
@@ -118,7 +118,7 @@ export async function generateSessionShareCard({ sessionType, duration, drillCou
   const ctx = canvas.getContext('2d');
 
   // Background
-  ctx.fillStyle = '#0d1f16';
+  ctx.fillStyle = '#0B0F0C';
   ctx.fillRect(0, 0, 1080, 1920);
 
   drawGrassTexture(ctx, 1080, 1920);
@@ -154,7 +154,7 @@ export async function generateSessionShareCard({ sessionType, duration, drillCou
   // Stats sub-line
   const statsLine = [duration ? `${duration} MIN` : null, drillCount ? `${drillCount} DRILLS` : null].filter(Boolean).join(' · ');
   if (statsLine) {
-    ctx.fillStyle = '#a8d5a2';
+    ctx.fillStyle = '#5FBE7E';
     ctx.font = '400 48px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(statsLine, 540, heroBottom + 60);
@@ -170,7 +170,7 @@ export async function generateSessionShareCard({ sessionType, duration, drillCou
   let sY = heroBottom + 300;
 
   if (improvingSkill) {
-    ctx.fillStyle = '#a8d5a2';
+    ctx.fillStyle = '#5FBE7E';
     ctx.font = 'bold 50px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(`${improvingSkill}: Improving ↑`, 540, sY);
@@ -205,7 +205,7 @@ export async function generateSessionShareCard({ sessionType, duration, drillCou
   ctx.textAlign = 'center';
   ctx.fillText('Improve your game with AI coaching', 540, 1790);
 
-  ctx.fillStyle = '#a8d5a2';
+  ctx.fillStyle = '#5FBE7E';
   ctx.font = '400 30px Georgia, serif';
   ctx.textAlign = 'center';
   ctx.fillText(APP_STORE_URL, 540, 1840);
@@ -223,7 +223,7 @@ function drawGrassTexture(ctx, w, h) {
     const y = Math.random() * h;
     const len = 20 + Math.random() * 40;
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
-    ctx.strokeStyle = '#a8d5a2';
+    ctx.strokeStyle = '#5FBE7E';
     ctx.lineWidth = 1 + Math.random() * 1.5;
     ctx.beginPath();
     ctx.moveTo(x, y);

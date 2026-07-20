@@ -7,6 +7,7 @@ module.exports = {
       fontFamily: {
         inter: ['Inter', 'sans-serif'],
         fraunces: ['Fraunces', 'serif'],
+        mono: ['JetBrains Mono', 'SF Mono', 'ui-monospace', 'monospace'],
       },
   		borderRadius: {
   			lg: 'var(--radius)',
@@ -20,6 +21,27 @@ module.exports = {
         'sage-dark': 'hsl(var(--sage-dark))',
         'session-dark': '#1a2e1a',
         'sage-light': 'hsl(var(--sage-light))',
+        // "The Cut" design-system palette (Phase 0) — exact values from the
+        // locked export, incl. glass alphas that can't live in HSL variables
+        cut: {
+          bg: '#0B0F0C',
+          bg2: '#0F1714',
+          card: 'rgba(244,239,227,.04)',
+          'card-solid': '#141A17',
+          'card-high': '#0B100D',
+          'card-border': 'rgba(244,239,227,.10)',
+          line: 'rgba(244,239,227,.08)',
+          'line-soft': 'rgba(244,239,227,.04)',
+          ink: '#F4EFE3',
+          'ink-soft': 'rgba(244,239,227,.72)',
+          'ink-mute': 'rgba(244,239,227,.45)',
+          green: '#5FBE7E',
+          'green-deep': '#0E4D2B',
+          'green-glow': 'rgba(95,190,126,.30)',
+          gold: '#D9B14A',
+          'gold-soft': 'rgba(217,177,74,.18)',
+          cream: '#F4EFE3',
+        },
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'

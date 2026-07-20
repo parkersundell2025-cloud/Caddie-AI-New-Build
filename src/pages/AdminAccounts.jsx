@@ -14,7 +14,7 @@ const STATUS_FILTERS = [
 ];
 
 const STATUS_STYLES = {
-  trial:      { bg: 'rgba(168,213,162,0.15)', color: '#a8d5a2' },
+  trial:      { bg: 'rgba(95,190,126,0.15)', color: '#5FBE7E' },
   basic:      { bg: 'rgba(96,165,250,0.15)',  color: '#60a5fa' },
   pro:        { bg: 'rgba(251,191,36,0.18)',  color: '#fbbf24' },
   cancelling: { bg: 'rgba(251,146,60,0.15)',  color: '#fb923c' },
@@ -280,7 +280,7 @@ export default function AdminAccounts() {
                         {u.role === 'admin' && (
                           <span
                             className="text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded flex-shrink-0"
-                            style={{ backgroundColor: 'rgba(168,213,162,0.2)', color: '#a8d5a2' }}
+                            style={{ backgroundColor: 'rgba(95,190,126,0.2)', color: '#5FBE7E' }}
                           >
                             Admin
                           </span>

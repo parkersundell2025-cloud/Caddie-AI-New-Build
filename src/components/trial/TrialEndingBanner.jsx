@@ -20,11 +20,11 @@ export default function TrialEndingBanner({ profile }) {
     <Link
       to="/manage-subscription"
       className="block rounded-2xl p-4 active:scale-[0.99] transition-all"
-      style={{ backgroundColor: 'rgba(168,213,162,0.18)', border: '1px solid rgba(168,213,162,0.4)' }}
+      style={{ backgroundColor: 'rgba(95,190,126,0.18)', border: '1px solid rgba(95,190,126,0.4)' }}
     >
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#a8d5a2' }}>
-          <Clock className="w-4 h-4" style={{ color: '#1a2e1a' }} />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#5FBE7E' }}>
+          <Clock className="w-4 h-4" style={{ color: '#0F1714' }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-foreground">1 day left in your trial</p>

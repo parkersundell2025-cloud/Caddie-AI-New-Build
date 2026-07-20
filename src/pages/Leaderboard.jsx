@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { AnimatePresence } from 'framer-motion';
-import { Trophy, Crown, Info } from 'lucide-react';
+import { Crown, Info, Plus, ChevronRight } from 'lucide-react';
 import LeaderboardRow from '@/components/leaderboard/LeaderboardRow';
 import PlayerProfileCard from '@/components/leaderboard/PlayerProfileCard';
 import LeaderboardHowtoPopup from '@/components/popups/LeaderboardHowtoPopup';
@@ -111,31 +111,56 @@ export default function Leaderboard() {
     return { ...entry, ptsToNext };
   });
 
+  // Per-tab display value, mirrors LeaderboardRow's score column
+  const entryValue = (entry) => {
+    if (tab === 'week') return { v: entry.week_activity_score || 0, u: 'pts' };
+    if (tab === 'streaks') return { v: entry.streak_days || 0, u: 'd' };
+    if (tab === 'alltime') return { v: entry.total_activity || ((entry.rounds_logged || 0) + (entry.sessions_logged || 0)), u: 'acts' };
+    return { v: (entry.total_score || 0).toFixed(1), u: 'pts' };
+  };
+
+  const showPodium = entriesWithGap.length >= 3;
+  const podium = showPodium ? [entriesWithGap[1], entriesWithGap[0], entriesWithGap[2]] : [];
+  const podiumMeta = [
+    { rank: 2, h: 50, ring: '#F4EFE3' },
+    { rank: 1, h: 80, ring: '#D9B14A' },
+    { rank: 3, h: 30, ring: '#C09553' },
+  ];
+  const listEntries = showPodium ? entriesWithGap.slice(3) : entriesWithGap;
+
   return (
     <div className="px-5 pt-5 pb-6 space-y-5 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-black text-foreground" style={{ letterSpacing: '-0.5px' }}>Leaderboard</h1>
-          <p className="text-muted-foreground text-sm">{monthName}</p>
+          <p className="cut-eyebrow text-cut-ink-mute">
+            {data?.entries?.length ? `${data.entries.length} Member${data.entries.length === 1 ? '' : 's'} · ` : ''}{monthName}
+          </p>
+          <h1 className="cut-headline text-cut-ink text-[30px] mt-1">
+            The <span className="italic text-cut-green">Club</span>.
+          </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowHowto(true)} className="w-9 h-9 rounded-2xl bg-muted flex items-center justify-center">
-            <Info className="w-4 h-4 text-muted-foreground" />
-          </button>
-          <div className="w-10 h-10 rounded-2xl bg-foreground flex items-center justify-center">
-            <Trophy className="w-5 h-5 text-background" />
-          </div>
-        </div>
+        <button
+          onClick={() => setShowHowto(true)}
+          className="w-9 h-9 rounded-full bg-cut-card-solid flex items-center justify-center text-cut-green"
+          style={{ border: '1px solid rgba(244,239,227,.10)' }}
+        >
+          <Info className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-muted rounded-2xl p-1 gap-1">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${tab === t.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            className={`px-3 py-[7px] rounded-[14px] text-xs font-semibold whitespace-nowrap transition-all ${
+              tab === t.id ? 'bg-cut-green text-cut-bg' : 'bg-cut-card-solid text-cut-ink-soft'
+            }`}
+            style={tab === t.id
+              ? { boxShadow: '0 0 16px rgba(95,190,126,.30)' }
+              : { border: '1px solid rgba(244,239,227,.10)' }}
           >
             {t.label}
           </button>
@@ -183,12 +208,12 @@ export default function Leaderboard() {
         <>
           {/* Defending Champion */}
           {tab === 'month' && data?.prevChampion && (
-            <div className="rounded-2xl p-4 flex items-center gap-3" style={{ backgroundColor: '#2a1f00' }}>
-              <Crown className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <div className="cut-glass p-4 flex items-center gap-3" style={{ borderLeft: '2px solid #D9B14A', borderRadius: 14 }}>
+              <Crown className="w-5 h-5 text-cut-gold flex-shrink-0" />
               <div>
-                <p className="text-xs text-yellow-400 font-bold uppercase tracking-wide">Defending Champion</p>
-                <p className="text-white font-black">{data.prevChampion.display_name}</p>
-                <p className="text-yellow-400/70 text-xs">
+                <p className="cut-eyebrow text-cut-gold">Defending Champion</p>
+                <p className="cut-headline text-cut-ink text-[15px] mt-0.5">{data.prevChampion.display_name}</p>
+                <p className="text-cut-ink-mute text-xs">
                   {new Date(data.prevChampion.month_year + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} · {data.prevChampion.winning_score?.toFixed(1)} pts
                 </p>
               </div>
@@ -213,13 +238,76 @@ export default function Leaderboard() {
             </div>
           )}
 
+          {/* Podium top 3 */}
+          {showPodium && (
+            <div className="cut-glass p-5">
+              <div
+                className="absolute pointer-events-none"
+                style={{ top: -60, right: -60, width: 200, height: 200, borderRadius: 100, background: 'rgba(95,190,126,.30)', filter: 'blur(50px)' }}
+              />
+              <div className="relative flex items-end justify-center gap-2" style={{ height: 160 }}>
+                {podium.map((entry, i) => {
+                  const meta = podiumMeta[i];
+                  const isMe = entry.user_email === user?.email;
+                  const { v, u } = entryValue(entry);
+                  const initials = (entry.display_name || 'G').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                  return (
+                    <button
+                      key={entry.user_email || i}
+                      onClick={() => setSelectedPlayer(entry.user_email)}
+                      className="flex-1 flex flex-col items-center"
+                    >
+                      <div className="relative mb-1.5">
+                        <div
+                          className="rounded-full flex items-center justify-center cut-headline italic"
+                          style={{
+                            width: meta.rank === 1 ? 56 : 48,
+                            height: meta.rank === 1 ? 56 : 48,
+                            fontSize: meta.rank === 1 ? 22 : 18,
+                            background: isMe ? '#5FBE7E' : '#141A17',
+                            color: isMe ? '#0B0F0C' : '#F4EFE3',
+                            border: `2px solid ${meta.ring}`,
+                            boxShadow: meta.rank === 1 ? '0 0 18px rgba(95,190,126,.30)' : 'none',
+                          }}
+                        >
+                          {initials}
+                        </div>
+                        {meta.rank === 1 && (
+                          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-base">👑</div>
+                        )}
+                      </div>
+                      <p className="text-[11px] font-bold text-cut-ink truncate max-w-full">{entry.display_name || 'Golfer'}{isMe ? ' (you)' : ''}</p>
+                      <p className="font-mono text-[11px] font-semibold text-cut-ink-soft mt-0.5">{v}{u === 'pts' ? '' : u}</p>
+                      <div
+                        className="mt-2 w-full flex items-center justify-center"
+                        style={{
+                          height: meta.h,
+                          background: isMe ? '#5FBE7E' : meta.rank === 2 ? '#141A17' : 'rgba(244,239,227,.06)',
+                          borderRadius: '4px 4px 0 0',
+                          border: `1px solid ${meta.ring}`,
+                          borderBottom: 'none',
+                          boxShadow: isMe ? 'inset 0 -2px 0 #0E4D2B, 0 0 16px rgba(95,190,126,.30)' : 'none',
+                        }}
+                      >
+                        <span className="cut-headline italic text-[26px]" style={{ color: isMe ? '#0B0F0C' : meta.ring }}>{meta.rank}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Score breakdown — month tab only for paid users */}
           {isPaid && tab === 'month' && data?.myEntry && (
             <ScoreBreakdown myEntry={data.myEntry} />
           )}
 
           {/* Leaderboard rows */}
-          <div className="space-y-2">
+          {showPodium && listEntries.length > 0 && (
+            <p className="cut-eyebrow text-cut-ink-mute px-1.5 -mb-2">All Members</p>
+          )}
+          <div className={listEntries.length > 0 ? 'cut-glass overflow-hidden' : 'space-y-2'}>
             {(entriesWithGap || []).length === 0 ? (
               // Three empty states:
               //  1. Age-gated active user (myEntry exists, meets_age_criteria=false) — the
@@ -243,45 +331,63 @@ export default function Leaderboard() {
                 </div>
               )
             ) : (
-              entriesWithGap.map((entry, i) => (
+              listEntries.map((entry, i) => (
                 <LeaderboardRow
                   key={entry.user_email || i}
                   entry={entry}
-                  rank={i + 1}
+                  rank={(showPodium ? 3 : 0) + i + 1}
                   tab={tab}
                   isMe={entry.user_email === user?.email}
                   onTap={canSeeLeaderboard ? setSelectedPlayer : null}
                   blurred={false}
                   ptsToNext={entry.ptsToNext}
+                  divider={i < listEntries.length - 1}
                 />
               ))
             )}
           </div>
 
+          {/* Invite a friend — mock's gold CTA, wired to the real referral flow */}
+          <button
+            onClick={() => navigate('/referral')}
+            className="cut-glass w-full p-4 flex items-center gap-3 text-left active:opacity-80 transition-opacity"
+            style={{ borderLeft: '2px solid #D9B14A', borderRadius: 14 }}
+          >
+            <div className="w-[38px] h-[38px] rounded-xl flex items-center justify-center flex-shrink-0 bg-cut-gold-soft text-cut-gold">
+              <Plus className="w-[18px] h-[18px]" strokeWidth={2.2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="cut-headline text-cut-ink text-[15px]" style={{ letterSpacing: '-0.1px' }}>Invite a friend</p>
+              <p className="text-[11px] text-cut-ink-soft mt-0.5">Practice is better with the foursome.</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-cut-ink-soft" />
+          </button>
+
           {/* Hall of Fame */}
           {data?.hallOfFame?.length > 0 && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 pt-2">
-                <Crown className="w-4 h-4 text-yellow-400" />
-                <h2 className="text-sm font-black text-foreground uppercase tracking-wide">Hall of Fame</h2>
+              <div className="flex items-center gap-2 pt-2 px-1.5">
+                <Crown className="w-3.5 h-3.5 text-cut-gold" />
+                <h2 className="cut-eyebrow text-cut-gold">Hall of Fame</h2>
               </div>
-              <div className="space-y-2">
+              <div className="cut-glass overflow-hidden">
                 {data.hallOfFame.map((entry, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedPlayer(entry.user_email)}
-                    className="w-full flex items-center gap-3 p-3 rounded-2xl bg-card border border-yellow-400/20 active:scale-95 transition-all"
+                    className="w-full flex items-center gap-3 px-4 py-3 active:opacity-80 transition-all"
+                    style={{ borderBottom: i < data.hallOfFame.length - 1 ? '1px solid rgba(244,239,227,.08)' : 'none' }}
                   >
-                    <div className="w-8 h-8 rounded-full bg-yellow-400/20 flex items-center justify-center flex-shrink-0">
-                      <Crown className="w-4 h-4 text-yellow-400" />
+                    <div className="w-8 h-8 rounded-full bg-cut-gold-soft flex items-center justify-center flex-shrink-0">
+                      <Crown className="w-4 h-4 text-cut-gold" />
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-bold text-foreground text-sm">{entry.display_name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="cut-headline text-cut-ink text-sm">{entry.display_name}</p>
+                      <p className="text-xs text-cut-ink-mute">
                         {new Date(entry.month_year + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </p>
                     </div>
-                    <p className="text-sm font-black text-yellow-400">{entry.winning_score?.toFixed(1)} pts</p>
+                    <p className="font-mono text-sm font-bold text-cut-gold">{entry.winning_score?.toFixed(1)} pts</p>
                   </button>
                 ))}
               </div>

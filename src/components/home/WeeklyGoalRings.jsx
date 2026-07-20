@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/db';
 
 const RING_CONFIG = [
-  { key: 'Range Day', label: 'Range', icon: '🏌️', color: '#1a4d2e', lightColor: '#a8d5a2' },
+  { key: 'Range Day', label: 'Range', icon: '🏌️', color: '#1a4d2e', lightColor: '#5FBE7E' },
   { key: 'Putting & Short Game', label: 'Short Game', icon: '⛳', color: '#1a6b5a', lightColor: '#6ee7d7' },
   { key: 'Golf Fitness', label: 'Fitness', icon: '💪', color: '#b07d2a', lightColor: '#fcd34d' },
 ];
@@ -26,7 +26,7 @@ function Ring({ config, pct, complete }) {
             cy={SIZE / 2}
             r={RADIUS}
             fill="none"
-            stroke="rgba(255,255,255,0.08)"
+            stroke="rgba(244,239,227,0.08)"
             strokeWidth={STROKE}
           />
           {/* Fill */}

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const CARD = { background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 };
+const CARD = { background: '#141A17', border: '1px solid rgba(95,190,126,0.15)', borderRadius: 20 };
 const CELL = { background: '#1e1e1e', borderRadius: 16 };
 
 const STATS = [
@@ -53,7 +53,7 @@ export default function StatGauges({ rounds }) {
 
   return (
     <div style={CARD} className="p-5 space-y-4">
-      <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.4)' }}>You vs Tour</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(244,239,227,0.4)' }}>You vs Tour</p>
       <div className="grid grid-cols-2 gap-3">
         {STATS.map(stat => {
           const val = current[stat.key];
@@ -70,18 +70,18 @@ export default function StatGauges({ rounds }) {
           return (
             <div key={stat.key} style={CELL} className="p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.4)' }}>{stat.label}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(244,239,227,0.4)' }}>{stat.label}</p>
                 {arrow && <span className="text-xs font-black" style={{ color: arrow.color }}>{arrow.label}</span>}
               </div>
               <div className="flex items-end justify-between gap-2">
                 <p className="text-4xl font-black leading-none" style={{ color, fontFamily: 'Fraunces, Georgia, serif' }}>
                   {val !== null ? `${val}${stat.unit}` : '—'}
                 </p>
-                <p className="text-xs pb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p className="text-xs pb-1" style={{ color: 'rgba(244,239,227,0.3)' }}>
                   Tour<br />{stat.tourBenchmark}{stat.unit}
                 </p>
               </div>
-              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(244,239,227,0.08)' }}>
                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${barPct}%`, background: color }} />
               </div>
             </div>

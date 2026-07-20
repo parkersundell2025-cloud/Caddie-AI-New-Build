@@ -2,15 +2,15 @@ import React from 'react';
 import { LineChart, Line, XAxis, YAxis, ReferenceLine, ResponsiveContainer, Tooltip } from 'recharts';
 import { format } from 'date-fns';
 
-const CARD = { background: '#141414', border: '1px solid rgba(168,213,162,0.15)', borderRadius: 20 };
+const CARD = { background: '#141A17', border: '1px solid rgba(95,190,126,0.15)', borderRadius: 20 };
 
 export default function ScoreChart({ rounds, profile }) {
   if (!rounds || rounds.length < 3) {
     return (
       <div style={CARD} className="p-6 text-center space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.4)' }}>Scoring Trend</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(244,239,227,0.4)' }}>Scoring Trend</p>
         <p className="text-4xl">⛳</p>
-        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Log rounds to see your scoring trend</p>
+        <p className="text-sm" style={{ color: 'rgba(244,239,227,0.4)' }}>Log rounds to see your scoring trend</p>
       </div>
     );
   }
@@ -31,29 +31,29 @@ export default function ScoreChart({ rounds, profile }) {
   return (
     <div style={CARD} className="p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.4)' }}>Scoring Trend</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'rgba(244,239,227,0.4)' }}>Scoring Trend</p>
         <span className="text-xs font-bold" style={{ color: improving ? '#22c55e' : '#ef4444' }}>{trendLabel}</span>
       </div>
       <div style={{ height: 160 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 12, right: 40, bottom: 0, left: -24 }}>
-            <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} tickFormatter={d => format(new Date(d), 'MMM d')} interval="preserveStartEnd" />
-            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} reversed />
+            <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'rgba(244,239,227,0.3)' }} tickFormatter={d => format(new Date(d), 'MMM d')} interval="preserveStartEnd" />
+            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 9, fill: 'rgba(244,239,227,0.3)' }} reversed />
             <Tooltip
               formatter={v => [v, 'Score']}
               labelFormatter={l => format(new Date(l), 'MMM d, yyyy')}
-              contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, fontSize: 11, color: '#fff' }}
-              itemStyle={{ color: '#a8d5a2' }}
+              contentStyle={{ background: '#141A17', border: 'none', borderRadius: 10, fontSize: 11, color: '#fff' }}
+              itemStyle={{ color: '#5FBE7E' }}
             />
             {handicapPar && (
               <ReferenceLine
                 y={handicapPar}
-                stroke="rgba(255,255,255,0.3)"
+                stroke="rgba(244,239,227,0.3)"
                 strokeDasharray="5 4"
-                label={{ value: 'Your Par', position: 'right', fontSize: 9, fill: 'rgba(255,255,255,0.4)' }}
+                label={{ value: 'Your Par', position: 'right', fontSize: 9, fill: 'rgba(244,239,227,0.4)' }}
               />
             )}
-            <Line type="monotone" dataKey="score" stroke="#a8d5a2" strokeWidth={2.5} dot={{ r: 3, fill: '#a8d5a2', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#a8d5a2' }} />
+            <Line type="monotone" dataKey="score" stroke="#5FBE7E" strokeWidth={2.5} dot={{ r: 3, fill: '#5FBE7E', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#5FBE7E' }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

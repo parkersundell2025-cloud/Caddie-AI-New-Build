@@ -54,7 +54,7 @@ export default function ScoreTrendChart({ rounds }) {
             />
             <Line type="monotone" dataKey="score" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             {chartData.length >= 3 && (
-              <Line type="monotone" dataKey="avg" stroke="#a8d5a2" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+              <Line type="monotone" dataKey="avg" stroke="#5FBE7E" strokeWidth={2} dot={false} strokeDasharray="4 2" />
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -62,7 +62,7 @@ export default function ScoreTrendChart({ rounds }) {
       {chartData.length >= 3 && (
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-foreground inline-block rounded" /> Each round</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-sage inline-block rounded" style={{ background: '#a8d5a2' }} /> 5-round avg</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-sage inline-block rounded" style={{ background: '#5FBE7E' }} /> 5-round avg</span>
         </div>
       )}
     </div>

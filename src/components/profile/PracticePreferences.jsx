@@ -271,7 +271,7 @@ export default function PracticePreferences({ profile, onSave, saving }) {
                       onChange={(e) => updateDistribution(type.key, Number(e.target.value))}
                       className="flex-1"
                       style={{
-                        background: `linear-gradient(to right, ${type.color} 0%, ${type.color} ${((form.session_distribution[type.key] || 0) / form.days_per_week) * 100}%, #e8e8e6 ${((form.session_distribution[type.key] || 0) / form.days_per_week) * 100}%, #e8e8e6 100%)`
+                        background: `linear-gradient(to right, ${type.color} 0%, ${type.color} ${((form.session_distribution[type.key] || 0) / form.days_per_week) * 100}%, rgba(244,239,227,.10) ${((form.session_distribution[type.key] || 0) / form.days_per_week) * 100}%, rgba(244,239,227,.10) 100%)`
                       }}
                     />
                     <span className="text-sm font-bold text-foreground w-4 text-right">{form.session_distribution[type.key] || 0}</span>

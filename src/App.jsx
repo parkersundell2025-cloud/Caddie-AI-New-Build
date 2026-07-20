@@ -25,6 +25,7 @@ import { WifiOff } from 'lucide-react';
 
 // Page imports
 import Welcome from './pages/Welcome';
+import WelcomeV2 from './pages/WelcomeV2';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import DeleteAccount from './pages/DeleteAccount';
@@ -36,6 +37,7 @@ import Progress from './pages/Progress';
 import Coach from './pages/Coach';
 import Profile from './pages/Profile';
 import AppLayout from './components/layout/AppLayout';
+import Inbox from './pages/Inbox';
 import Settings from './pages/Settings';
 import ManageSubscription from './pages/ManageSubscription';
 import CancelSubscription from './pages/CancelSubscription';
@@ -282,6 +284,7 @@ const AuthenticatedApp = () => {
             {/* Public pages — no auth required */}
             <Route path="/signin" element={<SignIn />} />
             <Route path="/welcome" element={<Welcome />} />
+            <Route path="/welcome-preview" element={<WelcomeV2 />} />
             <Route path="/create-account" element={<CreateAccount />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
@@ -333,6 +336,7 @@ const AuthenticatedApp = () => {
               <Route path="/profile" element={<Profile />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/inbox" element={<Inbox />} />
               <Route path="/leaderboard-info" element={<LeaderboardInfo />} />
               <Route path="/manage-subscription" element={<ManageSubscription />} />
               <Route path="/cancel-subscription" element={<CancelSubscription />} />
@@ -566,13 +570,36 @@ function OfflineBanner() {
   }, []);
 
   if (online) return null;
+  // Styled after the mock's offline state (icon-in-circle, serif headline)
+  // but kept as a non-blocking banner: already-loaded content stays readable
+  // offline, and the mock's full-screen copy describes offline round-saving,
+  // which doesn't exist yet (Phase 2.1).
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[60] bg-destructive text-destructive-foreground py-2 px-4 flex items-center justify-center gap-2 text-xs font-semibold"
-      style={{ paddingTop: 'calc(var(--safe-area-inset-top, env(safe-area-inset-top)) + 8px)' }}
+      className="fixed left-3.5 right-3.5 z-[60] flex items-center gap-3 px-4 py-3"
+      style={{
+        top: 'calc(var(--safe-area-inset-top, env(safe-area-inset-top)) + 10px)',
+        background: 'rgba(20,26,23,.92)',
+        backdropFilter: 'blur(28px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+        border: '1px solid rgba(244,239,227,.10)',
+        borderRadius: 18,
+        boxShadow: '0 16px 32px rgba(0,0,0,.45)',
+        maxWidth: 'calc(min(100%, 32rem) - 28px)',
+        marginLeft: 'auto',
+        marginRight: 'auto',
+      }}
     >
-      <WifiOff className="w-3.5 h-3.5" />
-      You're offline
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ background: '#141A17', border: '1px solid rgba(244,239,227,.10)', color: 'rgba(244,239,227,.45)' }}
+      >
+        <WifiOff className="w-4 h-4" strokeWidth={1.8} />
+      </div>
+      <div className="min-w-0">
+        <p className="cut-headline text-[15px]" style={{ color: '#F4EFE3', letterSpacing: '-0.3px' }}>You're offline</p>
+        <p className="text-[11px]" style={{ color: 'rgba(244,239,227,.45)' }}>Reconnect to keep your coaching in sync.</p>
+      </div>
     </div>
   );
 }

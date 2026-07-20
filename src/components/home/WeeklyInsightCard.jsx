@@ -104,9 +104,9 @@ Write 3-5 sentences in a warm, encouraging coach voice. Reference specific drill
 
   if (generating) {
     return (
-      <div className="card-base p-4 border-l-4 space-y-2" style={{ borderLeftColor: '#a8d5a2' }}>
+      <div className="card-base p-4 border-l-4 space-y-2" style={{ borderLeftColor: '#5FBE7E' }}>
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-sage" style={{ color: '#a8d5a2' }} />
+          <Sparkles className="w-4 h-4 text-sage" style={{ color: '#5FBE7E' }} />
           <p className="text-xs font-bold text-foreground uppercase tracking-wide">Your weekly insight from Caddie AI</p>
         </div>
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -120,10 +120,10 @@ Write 3-5 sentences in a warm, encouraging coach voice. Reference specific drill
   if (!insight) return null;
 
   return (
-    <div className="card-base p-4 border-l-4 space-y-2" style={{ borderLeftColor: '#a8d5a2' }}>
+    <div className="card-base p-4 border-l-4 space-y-2" style={{ borderLeftColor: '#5FBE7E' }}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4" style={{ color: '#a8d5a2' }} />
+          <Sparkles className="w-4 h-4" style={{ color: '#5FBE7E' }} />
           <p className="text-xs font-bold text-foreground uppercase tracking-wide">Your weekly insight from Caddie AI</p>
         </div>
         <button
