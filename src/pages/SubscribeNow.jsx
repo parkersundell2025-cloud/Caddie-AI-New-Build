@@ -46,6 +46,40 @@ const PLANS = [
   },
 ];
 
+// Design-preview lineup per the freemium spec (Free / Pro monthly / Pro
+// annual) — the Phase 0 "design it once" deliverable. Rendered only at
+// /subscribe-now?preview=freemium with purchasing disabled; becomes the
+// default PLANS at freemium launch. Pricing illustrative until the SKUs
+// exist.
+const FREEMIUM_PREVIEW = new URLSearchParams(window.location.search).get('preview') === 'freemium';
+const FREEMIUM_PLANS = [
+  {
+    id: 'free',
+    label: 'Free',
+    price: '$0',
+    per: '',
+    sub: 'Practice plans · round logging · leaderboard',
+    best: false,
+  },
+  {
+    id: 'pro_monthly',
+    label: 'Pro Monthly',
+    price: '$9.99',
+    per: '/mo',
+    sub: 'Everything unlocked · billed monthly',
+    best: false,
+  },
+  {
+    id: 'pro_annual',
+    label: 'Pro Annual',
+    price: '$59.99',
+    per: '/yr',
+    sub: 'Everything unlocked · 2 months free',
+    best: true,
+    badge: 'BEST VALUE',
+  },
+];
+
 const FEATURES = [
   { l: 'Personalized practice plans', d: 'A weekly schedule built around your game' },
   { l: 'AI coach', d: 'Ask anything, trained on your rounds and sessions' },
@@ -173,7 +207,7 @@ export default function SubscribeNow() {
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(false);
   const [restoreMsg, setRestoreMsg] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState('pro');
+  const [selectedPlan, setSelectedPlan] = useState(FREEMIUM_PREVIEW ? 'pro_annual' : 'pro');
   // Per-plan loading state so we can disable the relevant button while we
   // wait for the Checkout Session URL.
   const [checkoutLoading, setCheckoutLoading] = useState(null); // 'basic' | 'pro' | null
@@ -188,6 +222,13 @@ export default function SubscribeNow() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Design preview renders for anyone (even signed-out / subscribed
+    // viewers) — it exists to be looked at, not purchased from
+    if (FREEMIUM_PREVIEW) {
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
 
     const init = async () => {
       const u = await getCurrentUser();
@@ -410,12 +451,26 @@ export default function SubscribeNow() {
           transition={{ delay: 0.15 }}
           className="space-y-2"
         >
-          {PLANS.map((p) => (
+          {(FREEMIUM_PREVIEW ? FREEMIUM_PLANS : PLANS).map((p) => (
             <PlanRow key={p.id} plan={p} selected={selectedPlan === p.id} onSelect={setSelectedPlan} />
           ))}
         </motion.div>
 
         {/* CTA */}
+        {FREEMIUM_PREVIEW ? (
+          <div className="space-y-2">
+            <button
+              disabled
+              className="w-full h-[54px] rounded-2xl text-sm font-bold bg-cut-green text-cut-bg opacity-60"
+              style={{ letterSpacing: '0.2px' }}
+            >
+              {selectedPlan === 'free' ? 'Continue with Free' : 'Start 7-day Free Trial →'}
+            </button>
+            <p className="text-center text-[11px] text-cut-gold font-semibold" style={{ letterSpacing: '0.4px' }}>
+              DESIGN PREVIEW — GOES LIVE WITH THE FREEMIUM LAUNCH · PRICING ILLUSTRATIVE
+            </p>
+          </div>
+        ) : (
         <button
           onClick={() => onPurchase(selectedPlan)}
           disabled={checkoutLoading !== null}
@@ -424,6 +479,7 @@ export default function SubscribeNow() {
         >
           {checkoutLoading ? 'Loading…' : `Subscribe — ${selectedPlan === 'pro' ? 'Pro' : 'Basic'} →`}
         </button>
+        )}
 
         {checkoutError && (
           <p className="text-sm text-center max-w-sm mx-auto" style={{ color: '#E5695E' }}>{checkoutError}</p>
@@ -434,8 +490,9 @@ export default function SubscribeNow() {
           Your existing progress, rounds, sessions and coaching history are all saved and will be waiting for you when you subscribe.
         </p>
 
-        <Disclosure />
+        {FREEMIUM_PREVIEW ? null : <Disclosure />}
 
+        {FREEMIUM_PREVIEW ? null : (<>
         {/* Restore — required by Apple on the native paywall */}
         <div className="text-center space-y-3">
           {!native && <p className="text-cut-ink-mute text-xs">Already subscribed? Tap below to refresh your access.</p>}
@@ -460,6 +517,7 @@ export default function SubscribeNow() {
             Sign out
           </button>
         </div>
+        </>)}
       </div>
     </div>
   );
