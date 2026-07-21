@@ -24,7 +24,6 @@ import { WifiOff } from 'lucide-react';
 
 
 // Page imports
-import Welcome from './pages/Welcome';
 import WelcomeV2 from './pages/WelcomeV2';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
@@ -283,8 +282,9 @@ const AuthenticatedApp = () => {
 
             {/* Public pages — no auth required */}
             <Route path="/signin" element={<SignIn />} />
-            <Route path="/welcome" element={<Welcome />} />
-            <Route path="/welcome-preview" element={<WelcomeV2 />} />
+            <Route path="/welcome" element={<WelcomeV2 />} />
+            {/* Old preview URL was shared around — keep it working */}
+            <Route path="/welcome-preview" element={<Navigate to="/welcome" replace />} />
             <Route path="/create-account" element={<CreateAccount />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
