@@ -1,14 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
+import { requestAppReview } from '@/lib/appReview';
 
 export default function ReviewPopup({ onDismiss }) {
   const handleRate = () => {
-    // Use native SKStoreReviewRequestAPI via the App Store — no external URL needed.
-    // On web/PWA fallback, just dismiss (native app handles this via Capacitor/native bridge).
-    if (window.webkit?.messageHandlers?.requestReview) {
-      window.webkit.messageHandlers.requestReview.postMessage({});
-    }
+    requestAppReview();
     onDismiss();
   };
 
@@ -30,24 +27,24 @@ export default function ReviewPopup({ onDismiss }) {
         <div className="text-center space-y-1">
           <div className="flex justify-center gap-1 mb-3">
             {[1,2,3,4,5].map(n => (
-              <Star key={n} className="w-7 h-7 fill-yellow-400 text-yellow-400" />
+              <Star key={n} className="w-7 h-7 text-cut-gold" fill="#D9B14A" />
             ))}
           </div>
-          <h3 className="text-xl font-black text-foreground">You've logged 3 rounds!</h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <h3 className="cut-headline text-cut-ink text-xl">You've logged 3 rounds!</h3>
+          <p className="text-sm text-cut-ink-mute leading-relaxed">
             Enjoying Caddie AI? We'd love a quick rating — it helps us grow and keep improving.
           </p>
         </div>
 
         <button
           onClick={handleRate}
-          className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all bg-foreground text-background"
+          className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all bg-cut-green text-cut-bg"
         >
-          Rate Caddie AI ⭐⭐⭐⭐⭐
+          Rate Caddie AI
         </button>
         <button
           onClick={onDismiss}
-          className="w-full py-2 text-sm text-muted-foreground"
+          className="w-full py-2 text-sm text-cut-ink-mute"
         >
           Maybe Later
         </button>

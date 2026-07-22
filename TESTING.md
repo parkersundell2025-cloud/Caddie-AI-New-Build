@@ -595,3 +595,67 @@ banner at the top reflecting this.
   Console (D-U-N-S in hand) and Firebase project under his identity, invite
   silexdev as admin/editor (same arrangement as iOS — see
   `project-android-accounts-parker-owned` memory note).
+
+### July 2026 scope sprint (2026-07-14 to 2026-07-22)
+
+Full context: Parker approved the July Scope & Quote (see
+`project-scope-approval-2026-07` memory note). Highlights of the interim
+releases before this entry: **1.1.4 (41)** metadata release (subtitle, 3g
+keyword string, Parker's screenshots) submitted 2026-07-17; **1.1.5 (43)**
+plan-generator fix (session-type preferences fed to the LLM as hard
+constraints); Play rejection root-caused (reviewer used their own Gmail
+instead of the provided `caddieai.review@gmail.com` review account) and
+resubmitted with sharpened App-access wording. **Phase 0 ("The Cut" design
+overhaul) merged to main and live** as of 2026-07-19/20, with **1.2.1 (45)**
+uploaded as the release candidate.
+
+This week's landings (2026-07-20 → 07-22):
+
+- **Item 3c campaign relay verified in prod** — ads land on
+  `/welcome?c=<tag>`; `src/lib/campaign.js` persists the tag and appends
+  Apple's `ct=` to every App Store link; `AppStoreClick` Pixel event fires
+  with `{campaign, placement}`. Wrote Parker the web-campaign vs. Meta-SDK
+  App-Promotion explainer (SDK path = separate quote; SKAdNetwork data is
+  delayed/aggregated).
+- **New OFFICIAL app icon** (Parker's halftone golf-ball sphere) generated
+  from `~/Downloads/CaddieAI/V2/Phase 0 screenshots/OFFICIAL.png` across all
+  surfaces: iOS asset catalog, all 24 Android mipmaps (masks mirrored from
+  originals), web favicons/PWA icons, `assets/` generator sources. Play
+  listing 512px copy on Desktop. Commit `33081ef`.
+- **Freemium paywall design preview** — `/subscribe-now?preview=freemium`
+  renders the Free/Pro-monthly/Pro-annual layout, inert for real users.
+  Closes Phase 0's "design paywall once against freemium tiers" commitment.
+- **iOS 1.2.1 (46) uploaded** 2026-07-21 — carries new icon + paywall
+  preview; ipa verified (version/build/icon pixel-checked). Item 3a review
+  prompt deliberately **excluded** from this build (stashed, then restored)
+  so it could be device-tested first. ASC submission pairs build 46 with
+  Parker's six 1284×2778 screenshots.
+- **Item 3a in-app review prompt built and device-verified** —
+  `src/lib/appReview.js` (`maybeRequestReview()`: native only, ≤3/365d,
+  ≥30d spacing) fired at success moments: `SessionCelebration` back-tap and
+  `CelebrationPopup` dismiss. Old `ReviewPopup` demoted to web-only in
+  `SmartPopupController`. Verified on-device via Xcode dev build (sheet
+  appears post-celebration; Submit greyed = expected in dev; **TestFlight
+  always suppresses the sheet by design**). NOT yet committed — rides a
+  future build. Xcode signing unblocked: Parker's account is now an
+  Organization (Caddie AI LLC) and invited silexdev's Apple ID as Developer;
+  `DEVELOPMENT_TEAM` added to the **Debug** config only (Release manual
+  signing untouched — Xcode had clobbered it; reverted).
+- **Welcome swap shipped on Parker's go** — `/welcome` now serves the Cut
+  redesign (`WelcomeV2`), `/welcome-preview` 301s to it. Campaign relay
+  re-verified post-swap. Play badge intentionally inert until Play approval.
+  Commit `2d6871e`.
+- **Item 3e audit (read-only) complete** — Parker's "duplicate products" in
+  RevenueCat decoded: same plan sold per store (iOS/Web/Android), several
+  rows had blank display names. Webhook `PLAN_FROM_PRODUCT` verified to
+  cover all 8 store identifiers + all 8 RC internal IDs — no mapping
+  changes needed. Display names renamed per-channel in the RC dashboard by
+  Tony 2026-07-22 (identifiers untouched; legacy + Test Store rows left
+  alone). **The 25 lifetime beta accounts are NOT identifiable in the DB**
+  (no marker; pre-launch cohort all has Stripe/trial trails) — Parker asked
+  for his list; `account_flag` migration + metric exclusions built once it
+  arrives. Flagged to Parker that his beta users may have lapsed to
+  `expired`.
+- **Pricing pivot pending** — Parker floated holding freemium and doing
+  weekly/monthly/yearly SKUs instead; awaiting his one-plan-or-two answer
+  before quoting.

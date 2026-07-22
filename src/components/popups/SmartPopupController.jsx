@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { isNative } from '@/lib/platform';
 import { AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
@@ -25,8 +26,9 @@ export default function SmartPopupController() {
     setProfile(p);
 
     // Never show both in same session — check review first (higher priority event-driven)
-    // Review popup: after 3rd round, show once only
-    if (!p.popup_review_shown) {
+    // Review popup: after 3rd round, show once only. Web only — native users
+    // get the OS review sheet at success moments (lib/appReview) instead.
+    if (!p.popup_review_shown && !isNative()) {
       const rounds = await unwrap(supabase.from('round').select('*').eq('user_email', user.email));
       if (rounds.length >= 3) {
         await unwrap(supabase.from('user_profile').update({ popup_review_shown: true }).eq('id', p.id).select().single());
