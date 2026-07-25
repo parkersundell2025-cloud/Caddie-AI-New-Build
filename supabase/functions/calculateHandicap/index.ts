@@ -11,7 +11,9 @@ Deno.serve(async (req) => {
     const { data } = await db.from('round')
       .select('*').eq('user_email', user.email)
       .order('round_date', { ascending: false }).limit(1000);
-    const allRounds = data || [];
+    // Differential formula is 18-hole math; 9-hole rounds would compute
+    // ~27 under and wreck the index. null holes_played = legacy 18.
+    const allRounds = (data || []).filter((r) => r.holes_played !== 9);
 
     if (allRounds.length < 3) {
       return json({

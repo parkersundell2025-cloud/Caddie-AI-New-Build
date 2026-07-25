@@ -659,3 +659,47 @@ This week's landings (2026-07-20 → 07-22):
 - **Pricing pivot pending** — Parker floated holding freemium and doing
   weekly/monthly/yearly SKUs instead; awaiting his one-plan-or-two answer
   before quoting.
+
+### Phase 2.1 — Hole-by-hole stat tracking (2026-07-22)
+
+Built and verified end-to-end in dev, per plan (design source:
+`round-live.jsx` mock; decisions: quick log stays, 9+18 holes, tap-to-set
+par default 4). Not yet committed.
+
+- **Schema:** `round_hole` table (par/score/fairway/gir/putts/logged_at per
+  hole, owner RLS, cascade delete) + `round.holes_played` (null = legacy
+  18). Migration `20260722000001_round_hole_tracking.sql` applied to dev.
+- **Edge functions deployed:** `logRound` accepts `holes[]`, validates,
+  recomputes ALL aggregates server-side (client totals ignored), inserts
+  round+holes with compensating rollback; 9-hole rounds skip the
+  suspicious-score flag. `calculateHandicap` + `updateLeaderboard` exclude
+  9-hole rounds from differential math (activity counts keep them) —
+  without this a 9-hole 45 reads as −27 and corrupts handicap/leaderboard.
+- **Frontend:** `/round-tracker` full-screen Cut page (outside AppLayout,
+  fully gated); localStorage draft `caddie_round_draft_v1` survives app
+  kill/reload; phases setup→hole→stats→summary; hole strip with tap-to-edit
+  (re-edits preserve original logged_at for Phase 3); Progress gets chooser
+  sheet (track live / quick log), resume banner, and return-celebration
+  (existing CelebrationPopup + review-prompt hook reused); RecentRounds
+  expandable scorecard + GIR /9 fix; StatGauges excludes 9-holers.
+- **Verified (Playwright, fixture account empty-state-test@silexdev.com):**
+  full 9-hole flow incl. par-3 auto-N/A + score-follows-par, mid-round
+  reload resume, running stats hand-checked (FW 2/2, GIR 1/3, score 13),
+  strip edit, offline save failure retains draft, online save → celebration
+  → scorecard. DB cross-check: aggregates == hole sums (38/38, 18 putts),
+  logged_at all stamped, not flagged, handicap unchanged (18→18) by 9-hole
+  round. Quick-log regression passes. Test data cleaned up (round cascade +
+  leaderboard entry deleted).
+- Found during test: `leaderboard_entry.is_account_flagged` already exists —
+  useful hook for the 3e account-flag work.
+- **Lock-screen round reminder (Parker ask, 2026-07-24):**
+  `@capacitor/local-notifications` + `src/lib/roundReminder.js`. App
+  backgrounds with an active draft → pinned notification "Round in progress
+  at {course} — tap to log hole N" (deep-links `caddieai://round-tracker`
+  through the same PushTapRouter pipeline); foreground/save/discard clears
+  it. Permission asked at round start (best-context moment). Native-only —
+  web verified as clean no-op (smoke test, zero page errors). Native
+  behavior (notification on lock screen, tap-to-resume) pending the next
+  Xcode dev run. NOTE: Parker's "full version" (Live Activity with live
+  score on lock screen / Dynamic Island) is separate native scope — quoted
+  separately if he wants it.

@@ -4,7 +4,10 @@ import { format } from 'date-fns';
 
 const CARD = { background: '#141A17', border: '1px solid rgba(95,190,126,0.15)', borderRadius: 20 };
 
-export default function ScoreChart({ rounds, profile }) {
+export default function ScoreChart({ rounds: allRounds, profile }) {
+  // 18-hole trend only — a 9-hole total charted against 18-hole scores reads
+  // as a phantom 40-stroke improvement (same exclusion as handicap/gauges)
+  const rounds = (allRounds || []).filter(r => r.holes_played !== 9);
   if (!rounds || rounds.length < 3) {
     return (
       <div style={CARD} className="p-6 text-center space-y-3">
