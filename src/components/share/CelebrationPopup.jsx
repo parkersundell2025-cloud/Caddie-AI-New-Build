@@ -1,4 +1,5 @@
 import React from 'react';
+import { maybeRequestReview } from '@/lib/appReview';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
@@ -12,6 +13,10 @@ import { motion, AnimatePresence } from 'framer-motion';
  *   onDismiss: fn
  */
 export default function CelebrationPopup({ visible, emoji, headline, copy, onShare, onDismiss }) {
+  const handleDismiss = () => {
+    maybeRequestReview();
+    onDismiss();
+  };
   return (
     <AnimatePresence>
       {visible && (
@@ -49,7 +54,7 @@ export default function CelebrationPopup({ visible, emoji, headline, copy, onSha
                 Share Your Achievement →
               </button>
               <button
-                onClick={onDismiss}
+                onClick={handleDismiss}
                 className="w-full py-3 rounded-2xl font-semibold text-sm text-white/50 hover:text-white/80 transition-colors"
               >
                 Maybe Later

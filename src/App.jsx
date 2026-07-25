@@ -16,6 +16,8 @@ import { isNative, NATIVE_URL_SCHEME } from '@/lib/platform';
 import { configureRevenueCat } from '@/lib/revenuecat';
 import { initMetaPixelWithATT } from '@/lib/meta-pixel';
 import { addPushTappedListener } from '@/lib/push-notifications';
+import { showRoundReminder, clearRoundReminder, addReminderTappedListener } from '@/lib/roundReminder';
+import { loadDraft as loadRoundDraft } from '@/lib/roundDraft';
 import { captureRefFromUrl } from '@/lib/affiliate-attribution';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Keyboard, KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
@@ -63,6 +65,7 @@ import AdminAffiliatePayouts from './pages/AdminAffiliatePayouts';
 import AffiliateLogin from './pages/AffiliateLogin';
 import AffiliateDashboard from './pages/AffiliateDashboard';
 import ClubDistances from './pages/ClubDistances';
+import RoundTracker from './pages/RoundTracker';
 import SubscriptionCheckout from './pages/SubscriptionCheckout';
 import CreateAccount from './pages/CreateAccount';
 import Checkout from './pages/SubscriptionCheckout';
@@ -318,6 +321,8 @@ const AuthenticatedApp = () => {
             <Route path="/admin/affiliates/payouts" element={<ProtectedRoute><AdminAffiliatePayouts /></ProtectedRoute>} />
             <Route path="/admin/affiliates/:id" element={<ProtectedRoute><AdminAffiliateDetail /></ProtectedRoute>} />
             <Route path="/club-distances" element={<ProtectedRoute><ClubDistances /></ProtectedRoute>} />
+            {/* Full-screen (no bottom nav) but fully gated like tab pages */}
+            <Route path="/round-tracker" element={<ProtectedRoute><SubscriptionGate><OnboardingGate><RoundTracker /></OnboardingGate></SubscriptionGate></ProtectedRoute>} />
             <Route
               element={
                 <ProtectedRoute>
@@ -491,21 +496,54 @@ function PushTapRouter() {
   useEffect(() => {
     if (!isNative()) return;
     const prefix = `${NATIVE_URL_SCHEME}://`;
+    const routeSchemeUrl = (url) => {
+      if (typeof url !== 'string' || !url.startsWith(prefix)) return;
+      const afterScheme = url.slice(prefix.length).replace(/^\/+/, '');
+      const [pathAndQuery] = afterScheme.split('#');
+      const [pathPart = '', searchStr = ''] = pathAndQuery.split('?');
+      const path = '/' + pathPart + (searchStr ? `?${searchStr}` : '');
+      navigate(path);
+    };
+    let pushHandle, localHandle;
+    const register = async () => {
+      pushHandle = await addPushTappedListener((event) => {
+        routeSchemeUrl(event?.notification?.data?.url);
+      });
+      // Local notifications (round reminder) carry the same url convention
+      // under `extra` instead of `data`
+      localHandle = await addReminderTappedListener((event) => {
+        routeSchemeUrl(event?.notification?.extra?.url);
+      });
+    };
+    register();
+    return () => { pushHandle?.remove?.(); localHandle?.remove?.(); };
+  }, [navigate]);
+  return null;
+}
+
+// Pins a lock-screen reminder while a round draft is in progress: app goes
+// to background with an active draft → notification with the current hole;
+// app returns to foreground → cleared. Draft state lives in localStorage
+// (lib/roundDraft), so this works no matter which screen the golfer left
+// the app from.
+function RoundReminderController() {
+  useEffect(() => {
+    if (!isNative()) return;
+    clearRoundReminder();
     let handle;
     const register = async () => {
-      handle = await addPushTappedListener((event) => {
-        const url = event?.notification?.data?.url;
-        if (typeof url !== 'string' || !url.startsWith(prefix)) return;
-        const afterScheme = url.slice(prefix.length).replace(/^\/+/, '');
-        const [pathAndQuery] = afterScheme.split('#');
-        const [pathPart = '', searchStr = ''] = pathAndQuery.split('?');
-        const path = '/' + pathPart + (searchStr ? `?${searchStr}` : '');
-        navigate(path);
+      handle = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          clearRoundReminder();
+        } else {
+          const draft = loadRoundDraft();
+          if (draft) showRoundReminder(draft);
+        }
       });
     };
     register();
     return () => { handle?.remove?.(); };
-  }, [navigate]);
+  }, []);
   return null;
 }
 
@@ -631,6 +669,7 @@ function App() {
           <StatusBarController />
           <DeepLinkRouter />
           <PushTapRouter />
+          <RoundReminderController />
           <OfflineBanner />
           <AuthenticatedApp />
         </Router>

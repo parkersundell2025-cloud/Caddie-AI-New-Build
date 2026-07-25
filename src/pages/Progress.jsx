@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { loadDraft, computeRunningStats } from '@/lib/roundDraft';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -149,6 +150,7 @@ function LogRoundModal({ onClose, onSave }) {
 
 export default function Progress() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [rounds, setRounds] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -156,8 +158,10 @@ export default function Progress() {
   const [badges, setBadges] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showPreRound, setShowPreRound] = useState(false);
+  const [showChooser, setShowChooser] = useState(false);
   const [celebration, setCelebration] = useState(null);
   const [loading, setLoading] = useState(true);
+  const roundDraft = loadDraft();
 
   const loadData = async () => {
     const user = await getCurrentUser();
@@ -182,11 +186,20 @@ export default function Progress() {
     if (location.state?.openLogRound && !loading) handleLogRoundClick();
   }, [loading]);
 
+  // Returning from a saved hole-by-hole round — same celebration path as
+  // the quick log (PB / handicap logic keys off total_score only)
+  useEffect(() => {
+    if (location.state?.celebrateRound && !loading) {
+      triggerCelebration(location.state.celebrateRound);
+      window.history.replaceState({}, '');
+    }
+  }, [loading]);
+
   const { containerRef, pullDistance, refreshing } = usePullToRefresh(loadData);
 
   const handleLogRoundClick = () => {
     if (hasProAccess(profile)) setShowPreRound(true);
-    else setShowModal(true);
+    else setShowChooser(true);
   };
 
   const handleSaveRound = async (roundData) => {
@@ -290,6 +303,21 @@ export default function Progress() {
           </button>
         </div>
 
+        {roundDraft && (
+          <button
+            onClick={() => navigate('/round-tracker')}
+            className="w-full cut-glass rounded-2xl p-4 flex items-center justify-between text-left"
+          >
+            <div>
+              <p className="cut-eyebrow text-cut-gold">Round in progress</p>
+              <p className="text-sm text-cut-ink mt-1 font-semibold">
+                Resume at {roundDraft.course_name} — through {computeRunningStats(roundDraft).loggedCount} hole{computeRunningStats(roundDraft).loggedCount === 1 ? '' : 's'}
+              </p>
+            </div>
+            <span className="text-cut-green text-sm font-bold">Resume →</span>
+          </button>
+        )}
+
         {rounds.length === 0 && sessions.length === 0 ? (
           <div className="pt-3">
             <CutEmptyCard
@@ -369,9 +397,40 @@ export default function Progress() {
               style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 1.5rem)' }}
             >
               <PreRoundGamePlan
-                onDismiss={() => { setShowPreRound(false); setShowModal(true); }}
-                onProceed={() => { setShowPreRound(false); setShowModal(true); }}
+                onDismiss={() => { setShowPreRound(false); setShowChooser(true); }}
+                onProceed={() => { setShowPreRound(false); setShowChooser(true); }}
               />
+            </motion.div>
+          </motion.div>
+        )}
+        {showChooser && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-50 flex flex-col justify-end"
+            onClick={e => e.target === e.currentTarget && setShowChooser(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25 }}
+              className="bg-background rounded-t-3xl w-full max-w-lg mx-auto p-5"
+              style={{ paddingBottom: 'calc(var(--safe-area-inset-bottom, env(safe-area-inset-bottom)) + 1.5rem)' }}
+            >
+              <h2 className="cut-headline text-xl text-cut-ink mb-1">Log a round</h2>
+              <p className="text-[13px] text-cut-ink-mute mb-4">
+                Track it live hole by hole, or enter your totals afterwards.
+              </p>
+              <button
+                onClick={() => { setShowChooser(false); navigate('/round-tracker'); }}
+                className="w-full h-[54px] rounded-2xl bg-cut-green text-cut-bg text-[15px] font-bold shadow-[0_0_24px_rgba(95,190,126,.30)]"
+              >
+                {roundDraft ? 'Resume hole-by-hole round' : 'Track hole-by-hole'}
+              </button>
+              <button
+                onClick={() => { setShowChooser(false); setShowModal(true); }}
+                className="w-full h-12 mt-2.5 rounded-xl bg-cut-card-solid border border-white/10 text-cut-ink text-sm font-semibold"
+              >
+                Quick log totals
+              </button>
             </motion.div>
           </motion.div>
         )}

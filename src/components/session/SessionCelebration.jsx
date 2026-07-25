@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { maybeRequestReview } from '@/lib/appReview';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { unwrap, invokeLLM } from '@/lib/db';
@@ -92,6 +93,12 @@ function getHeadline(ratings) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function SessionCelebration({ ratings, session, user, profile, leaderboard, onBack }) {
+  // Success moment (completed session / new badge) — ask for a store review
+  // at the natural pause when the golfer leaves the celebration
+  const handleBack = () => {
+    maybeRequestReview();
+    onBack();
+  };
   const [newLeaderboard, setNewLeaderboard] = useState(null);
   const [newBadges, setNewBadges] = useState([]);
   const [coachNote, setCoachNote] = useState('');
@@ -297,7 +304,7 @@ export default function SessionCelebration({ ratings, session, user, profile, le
           className="w-full space-y-3"
         >
           <button
-            onClick={onBack}
+            onClick={handleBack}
             className="w-full py-4 rounded-2xl font-black text-base active:scale-95 transition-all"
             style={{ backgroundColor: '#5FBE7E', color: '#0B0F0C', boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.2)' }}
           >

@@ -86,7 +86,9 @@ Deno.serve(async (req) => {
       return Math.round(avg * 0.96 * 10) / 10;
     }
 
-    const roundDerivedHandicap = monthRounds.length >= 3 ? calculateHandicapFromRounds(monthRounds) : null;
+    // 9-hole rounds count toward activity but not the 18-hole handicap math
+    const fullRounds = monthRounds.filter((r) => r.holes_played !== 9);
+    const roundDerivedHandicap = fullRounds.length >= 3 ? calculateHandicapFromRounds(fullRounds) : null;
 
     // RULE 4: Cap handicap improvement at 3 strokes per month for scoring
     const baseline = profile.leaderboard_month_handicap_start ?? profile.current_handicap;

@@ -595,3 +595,111 @@ banner at the top reflecting this.
   Console (D-U-N-S in hand) and Firebase project under his identity, invite
   silexdev as admin/editor (same arrangement as iOS — see
   `project-android-accounts-parker-owned` memory note).
+
+### July 2026 scope sprint (2026-07-14 to 2026-07-22)
+
+Full context: Parker approved the July Scope & Quote (see
+`project-scope-approval-2026-07` memory note). Highlights of the interim
+releases before this entry: **1.1.4 (41)** metadata release (subtitle, 3g
+keyword string, Parker's screenshots) submitted 2026-07-17; **1.1.5 (43)**
+plan-generator fix (session-type preferences fed to the LLM as hard
+constraints); Play rejection root-caused (reviewer used their own Gmail
+instead of the provided `caddieai.review@gmail.com` review account) and
+resubmitted with sharpened App-access wording. **Phase 0 ("The Cut" design
+overhaul) merged to main and live** as of 2026-07-19/20, with **1.2.1 (45)**
+uploaded as the release candidate.
+
+This week's landings (2026-07-20 → 07-22):
+
+- **Item 3c campaign relay verified in prod** — ads land on
+  `/welcome?c=<tag>`; `src/lib/campaign.js` persists the tag and appends
+  Apple's `ct=` to every App Store link; `AppStoreClick` Pixel event fires
+  with `{campaign, placement}`. Wrote Parker the web-campaign vs. Meta-SDK
+  App-Promotion explainer (SDK path = separate quote; SKAdNetwork data is
+  delayed/aggregated).
+- **New OFFICIAL app icon** (Parker's halftone golf-ball sphere) generated
+  from `~/Downloads/CaddieAI/V2/Phase 0 screenshots/OFFICIAL.png` across all
+  surfaces: iOS asset catalog, all 24 Android mipmaps (masks mirrored from
+  originals), web favicons/PWA icons, `assets/` generator sources. Play
+  listing 512px copy on Desktop. Commit `33081ef`.
+- **Freemium paywall design preview** — `/subscribe-now?preview=freemium`
+  renders the Free/Pro-monthly/Pro-annual layout, inert for real users.
+  Closes Phase 0's "design paywall once against freemium tiers" commitment.
+- **iOS 1.2.1 (46) uploaded** 2026-07-21 — carries new icon + paywall
+  preview; ipa verified (version/build/icon pixel-checked). Item 3a review
+  prompt deliberately **excluded** from this build (stashed, then restored)
+  so it could be device-tested first. ASC submission pairs build 46 with
+  Parker's six 1284×2778 screenshots.
+- **Item 3a in-app review prompt built and device-verified** —
+  `src/lib/appReview.js` (`maybeRequestReview()`: native only, ≤3/365d,
+  ≥30d spacing) fired at success moments: `SessionCelebration` back-tap and
+  `CelebrationPopup` dismiss. Old `ReviewPopup` demoted to web-only in
+  `SmartPopupController`. Verified on-device via Xcode dev build (sheet
+  appears post-celebration; Submit greyed = expected in dev; **TestFlight
+  always suppresses the sheet by design**). NOT yet committed — rides a
+  future build. Xcode signing unblocked: Parker's account is now an
+  Organization (Caddie AI LLC) and invited silexdev's Apple ID as Developer;
+  `DEVELOPMENT_TEAM` added to the **Debug** config only (Release manual
+  signing untouched — Xcode had clobbered it; reverted).
+- **Welcome swap shipped on Parker's go** — `/welcome` now serves the Cut
+  redesign (`WelcomeV2`), `/welcome-preview` 301s to it. Campaign relay
+  re-verified post-swap. Play badge intentionally inert until Play approval.
+  Commit `2d6871e`.
+- **Item 3e audit (read-only) complete** — Parker's "duplicate products" in
+  RevenueCat decoded: same plan sold per store (iOS/Web/Android), several
+  rows had blank display names. Webhook `PLAN_FROM_PRODUCT` verified to
+  cover all 8 store identifiers + all 8 RC internal IDs — no mapping
+  changes needed. Display names renamed per-channel in the RC dashboard by
+  Tony 2026-07-22 (identifiers untouched; legacy + Test Store rows left
+  alone). **The 25 lifetime beta accounts are NOT identifiable in the DB**
+  (no marker; pre-launch cohort all has Stripe/trial trails) — Parker asked
+  for his list; `account_flag` migration + metric exclusions built once it
+  arrives. Flagged to Parker that his beta users may have lapsed to
+  `expired`.
+- **Pricing pivot pending** — Parker floated holding freemium and doing
+  weekly/monthly/yearly SKUs instead; awaiting his one-plan-or-two answer
+  before quoting.
+
+### Phase 2.1 — Hole-by-hole stat tracking (2026-07-22)
+
+Built and verified end-to-end in dev, per plan (design source:
+`round-live.jsx` mock; decisions: quick log stays, 9+18 holes, tap-to-set
+par default 4). Not yet committed.
+
+- **Schema:** `round_hole` table (par/score/fairway/gir/putts/logged_at per
+  hole, owner RLS, cascade delete) + `round.holes_played` (null = legacy
+  18). Migration `20260722000001_round_hole_tracking.sql` applied to dev.
+- **Edge functions deployed:** `logRound` accepts `holes[]`, validates,
+  recomputes ALL aggregates server-side (client totals ignored), inserts
+  round+holes with compensating rollback; 9-hole rounds skip the
+  suspicious-score flag. `calculateHandicap` + `updateLeaderboard` exclude
+  9-hole rounds from differential math (activity counts keep them) —
+  without this a 9-hole 45 reads as −27 and corrupts handicap/leaderboard.
+- **Frontend:** `/round-tracker` full-screen Cut page (outside AppLayout,
+  fully gated); localStorage draft `caddie_round_draft_v1` survives app
+  kill/reload; phases setup→hole→stats→summary; hole strip with tap-to-edit
+  (re-edits preserve original logged_at for Phase 3); Progress gets chooser
+  sheet (track live / quick log), resume banner, and return-celebration
+  (existing CelebrationPopup + review-prompt hook reused); RecentRounds
+  expandable scorecard + GIR /9 fix; StatGauges excludes 9-holers.
+- **Verified (Playwright, fixture account empty-state-test@silexdev.com):**
+  full 9-hole flow incl. par-3 auto-N/A + score-follows-par, mid-round
+  reload resume, running stats hand-checked (FW 2/2, GIR 1/3, score 13),
+  strip edit, offline save failure retains draft, online save → celebration
+  → scorecard. DB cross-check: aggregates == hole sums (38/38, 18 putts),
+  logged_at all stamped, not flagged, handicap unchanged (18→18) by 9-hole
+  round. Quick-log regression passes. Test data cleaned up (round cascade +
+  leaderboard entry deleted).
+- Found during test: `leaderboard_entry.is_account_flagged` already exists —
+  useful hook for the 3e account-flag work.
+- **Lock-screen round reminder (Parker ask, 2026-07-24):**
+  `@capacitor/local-notifications` + `src/lib/roundReminder.js`. App
+  backgrounds with an active draft → pinned notification "Round in progress
+  at {course} — tap to log hole N" (deep-links `caddieai://round-tracker`
+  through the same PushTapRouter pipeline); foreground/save/discard clears
+  it. Permission asked at round start (best-context moment). Native-only —
+  web verified as clean no-op (smoke test, zero page errors). Native
+  behavior (notification on lock screen, tap-to-resume) pending the next
+  Xcode dev run. NOTE: Parker's "full version" (Live Activity with live
+  score on lock screen / Dynamic Island) is separate native scope — quoted
+  separately if he wants it.

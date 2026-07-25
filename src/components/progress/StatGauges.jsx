@@ -11,7 +11,8 @@ const STATS = [
 ];
 
 function computeStats(rounds) {
-  const valid = rounds.filter(r => r.total_score > 0);
+  // Tour benchmarks are 18-hole figures; 9-hole rounds would skew them
+  const valid = rounds.filter(r => r.total_score > 0 && r.holes_played !== 9);
   const withFW = valid.filter(r => r.fairways_available > 0);
   const withGIR = valid.filter(r => r.greens_in_regulation != null);
   const withPutts = valid.filter(r => r.total_putts > 0);
