@@ -25,9 +25,16 @@ export function getCampaign() {
   }
 }
 
+// Apple ignores ct= unless pt= (App Analytics provider token, constant per
+// developer account) and mt=8 are also present — verified against Apple's
+// campaign-link format after ASC showed no campaign data on ct-only links.
+const APPLE_PROVIDER_TOKEN = '128810539';
+
 export function getAppStoreUrl() {
   const tag = getCampaign();
-  return tag ? `${APP_STORE_URL}?ct=${encodeURIComponent(tag)}` : APP_STORE_URL;
+  return tag
+    ? `${APP_STORE_URL}?pt=${APPLE_PROVIDER_TOKEN}&ct=${encodeURIComponent(tag)}&mt=8`
+    : APP_STORE_URL;
 }
 
 // Fires the Pixel event Meta conversion campaigns can optimize on.
