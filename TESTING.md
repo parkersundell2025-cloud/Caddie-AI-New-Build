@@ -692,6 +692,20 @@ par default 4). Not yet committed.
   leaderboard entry deleted).
 - Found during test: `leaderboard_entry.is_account_flagged` already exists —
   useful hook for the 3e account-flag work.
+- **Item 3e account flagging landed (2026-07-25):** `user_profile.account_flag`
+  ('test' | 'beta_lifetime' | 'promotional', null = normal customer),
+  migration `20260725000001_account_flag.sql`. Backfilled: 29 beta accounts
+  (Parker-confirmed list from the Stripe TEST-coupon investigation — his
+  July beta group) + 6 internal test accounts. Behavior: 'test' →
+  is_account_flagged on leaderboard entries (hidden from public board,
+  existing entries backfilled); any flag → excluded from monthly prize
+  selection (processMonthlyWinner reads user_profile directly). Betas stay
+  VISIBLE on the board — deliberate, per the plan Parker approved.
+  updateLeaderboard + processMonthlyWinner deployed. Verified via SQL:
+  0 test entries visible, 5 beta entries on board, betas prize-ineligible.
+  The TEST promo (100% off forever, uncapped) deactivation = Tony's manual
+  dashboard step. NOTE: 29 betas are Stripe-billed at $0 forever; if one
+  ever converts to paid, clear their flag manually.
 - **Lock-screen round reminder (Parker ask, 2026-07-24):**
   `@capacitor/local-notifications` + `src/lib/roundReminder.js`. App
   backgrounds with an active draft → pinned notification "Round in progress

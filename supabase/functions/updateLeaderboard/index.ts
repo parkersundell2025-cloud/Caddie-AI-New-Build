@@ -56,7 +56,11 @@ Deno.serve(async (req) => {
     );
 
     const { data: flaggedAccounts } = await db.from('flagged_account').select('*').eq('user_email', user.email);
-    const isAccountFlagged = (flaggedAccounts || []).some((f) => f.status === 'pending');
+    // 'test' hides internal accounts from the public leaderboard entirely.
+    // beta_lifetime/promotional stay visible — prize ineligibility for them
+    // is enforced in processMonthlyWinner off user_profile.account_flag.
+    const isAccountFlagged = (flaggedAccounts || []).some((f) => f.status === 'pending')
+      || profile.account_flag === 'test';
 
     const monthRounds = rounds.filter((r) => r.round_date >= monthStart && !excludedRoundIds.has(r.id));
     const monthSessions = sessions.filter((s) => s.session_date >= monthStart && s.completed);

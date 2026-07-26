@@ -27,7 +27,15 @@ Deno.serve(async (req) => {
       await db.from('leaderboard_entry').update({ rank: i + 1 }).eq('id', entries[i].id);
     }
 
-    const eligibleEntries = entries.filter((e) => e.meets_age_criteria !== false && !e.is_account_flagged);
+    // Non-commercial accounts (test/beta_lifetime/promotional) can rank on
+    // the board but never win — a free month is meaningless to a free-forever
+    // account and would take the prize from a paying member.
+    const { data: flaggedProfiles } = await db.from('user_profile')
+      .select('user_email').not('account_flag', 'is', null);
+    const nonCommercial = new Set((flaggedProfiles || []).map((p) => p.user_email));
+
+    const eligibleEntries = entries.filter((e) =>
+      e.meets_age_criteria !== false && !e.is_account_flagged && !nonCommercial.has(e.user_email));
     if (eligibleEntries.length === 0) return json({ message: 'No eligible entries for month' });
     eligibleEntries.sort(rankSort);
 
