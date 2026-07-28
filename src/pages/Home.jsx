@@ -6,6 +6,7 @@ import { Sparkles, Target, Play, Flag, CalendarDays } from 'lucide-react';
 import CutEmptyCard from '@/components/ui/CutEmptyCard';
 import { getDrillClub } from '@/lib/drillLibrary';
 import { isRestSession } from '@/lib/sessionUtils';
+import { resetCoachSessionFlag } from '@/lib/appSessionState';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import TrialEndingBanner from '@/components/trial/TrialEndingBanner';
 import TrialExpiredModal from '@/components/trial/TrialExpiredModal';
@@ -120,6 +121,9 @@ export default function Home() {
       setCompletedToday(false);
       return;
     }
+
+    // New session data — Coach must regenerate its opening on next visit
+    resetCoachSessionFlag();
 
     // Update leaderboard and badges in background
     supabase.functions.invoke('updateLeaderboard', { body: {} }).catch(() => {});
