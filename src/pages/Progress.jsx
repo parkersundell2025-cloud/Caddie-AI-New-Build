@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { loadDraft, computeRunningStats } from '@/lib/roundDraft';
+import { resetCoachSessionFlag } from '@/lib/appSessionState';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -215,6 +216,8 @@ export default function Progress() {
     });
 
     if (res.data?.saved && res.data?.roundId) {
+      // New round data — Coach must regenerate its opening on next visit
+      resetCoachSessionFlag();
       const user = await getCurrentUser();
       const allRounds = await unwrap(supabase.from('round').select('*').eq('user_email', user.email).order('round_date', { ascending: false }).limit(100));
       setRounds(allRounds);

@@ -455,7 +455,9 @@ export default function Coach() {
       // Load all live data fresh every session
       const [profiles, roundList, chatHistory, drillRatings, sessionLogs, badgeList, planList, monthlyPlanList, weeklyInsightList, weeklyReportList] = await Promise.all([
         unwrap(supabase.from('user_profile').select('*').eq('user_email', user.email)),
-        unwrap(supabase.from('round').select('*').eq('user_email', user.email).order('round_date', { ascending: false }).limit(50)),
+        // created_date tiebreaker: two rounds on the same round_date must not
+        // invert, or the opening message references the wrong "latest" round
+        unwrap(supabase.from('round').select('*').eq('user_email', user.email).order('round_date', { ascending: false }).order('created_date', { ascending: false }).limit(50)),
         unwrap(supabase.from('chat_message').select('*').eq('user_email', user.email).order('created_date', { ascending: true }).limit(200)),
         unwrap(supabase.from('drill_rating').select('*').eq('user_email', user.email).order('created_date', { ascending: false }).limit(100)),
         unwrap(supabase.from('session_log').select('*').eq('user_email', user.email).order('created_date', { ascending: false }).limit(50)),

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Minus, Plus } from 'lucide-react';
 import ChipRow from './ChipRow';
+import { formatVsPar } from '@/lib/roundDraft';
 
 const FAIRWAY_OPTIONS = [
   { value: 'hit', label: 'Hit' },
@@ -33,7 +34,7 @@ function Section({ label, children }) {
   );
 }
 
-export default function HoleEntry({ hole, loggedCount, holesPlanned, onChange, onNext, isLast }) {
+export default function HoleEntry({ hole, loggedCount, vsPar, holesPlanned, onChange, onNext, isLast }) {
   const setPar = (par) => {
     const patch = { par };
     // Untouched default score follows the par; par 3 has no fairway to hit
@@ -49,8 +50,15 @@ export default function HoleEntry({ hole, loggedCount, holesPlanned, onChange, o
           <div className="cut-eyebrow text-cut-gold">Hole {hole.hole_number}</div>
           <div className="cut-headline text-[26px] text-cut-ink mt-1">Par {hole.par}</div>
         </div>
-        <div className="cut-mono text-[11px] font-semibold text-cut-ink-mute">
-          {loggedCount} of {holesPlanned} logged
+        <div className="text-right">
+          {loggedCount > 0 && (
+            <div className={`cut-mono text-[17px] font-bold leading-none ${vsPar > 0 ? 'text-cut-gold' : 'text-cut-green'}`}>
+              {formatVsPar(vsPar)}
+            </div>
+          )}
+          <div className="cut-mono text-[11px] font-semibold text-cut-ink-mute mt-1">
+            {loggedCount} of {holesPlanned} logged
+          </div>
         </div>
       </div>
 

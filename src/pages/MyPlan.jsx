@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, ChevronDown, ChevronUp, Check, Dumbbell, Flag, Target, Leaf } from 'lucide-react';
 import { getDrillClub, getDrillByName } from '@/lib/drillLibrary';
 import { isRestSession } from '@/lib/sessionUtils';
+import { resetCoachSessionFlag } from '@/lib/appSessionState';
 import { buildPlanPrompt, PLAN_JSON_SCHEMA } from '@/lib/planGenerator';
 import CoachBriefing from '@/components/session/CoachBriefing';
 import ActiveSessionMode from '@/components/session/ActiveSessionMode';
@@ -167,6 +168,9 @@ export default function MyPlan() {
       })),
       },
     });
+
+    // New session data — Coach must regenerate its opening on next visit
+    resetCoachSessionFlag();
 
     setCompletedDays(prev => [...prev, sessionDay]);
     setActiveSession(null);

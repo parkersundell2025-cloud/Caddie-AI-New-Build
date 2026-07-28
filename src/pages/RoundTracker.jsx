@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, BarChart3 } from 'lucide-react';
 import { loadDraft, saveDraft, clearDraft, createDraft, computeRunningStats } from '@/lib/roundDraft';
 import { ensureReminderPermission, clearRoundReminder } from '@/lib/roundReminder';
+import { resetCoachSessionFlag } from '@/lib/appSessionState';
 import RoundSetup from '@/components/round/RoundSetup';
 import HoleStrip from '@/components/round/HoleStrip';
 import HoleEntry from '@/components/round/HoleEntry';
@@ -74,11 +75,15 @@ export default function RoundTracker() {
   const handleSaved = (celebrateRound) => {
     clearDraft();
     clearRoundReminder();
+    // New round data — Coach must regenerate its opening, not reuse the
+    // pre-round conversation
+    resetCoachSessionFlag();
     navigate('/progress', { state: { celebrateRound } });
   };
 
   const currentHole = draft?.holes.find((h) => h.hole_number === draft.current_hole);
-  const loggedCount = draft ? computeRunningStats(draft).loggedCount : 0;
+  const runningStats = draft ? computeRunningStats(draft) : null;
+  const loggedCount = runningStats?.loggedCount ?? 0;
 
   return (
     <div
@@ -127,6 +132,7 @@ export default function RoundTracker() {
           <HoleEntry
             hole={currentHole}
             loggedCount={loggedCount}
+            vsPar={runningStats?.vsPar ?? 0}
             holesPlanned={draft.holes_planned}
             onChange={handleHoleChange}
             onNext={handleNext}

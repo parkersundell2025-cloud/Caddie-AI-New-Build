@@ -13,7 +13,9 @@ Deno.serve(async (req) => {
       .order('round_date', { ascending: false }).limit(1000);
     // Differential formula is 18-hole math; 9-hole rounds would compute
     // ~27 under and wreck the index. null holes_played = legacy 18.
-    const allRounds = (data || []).filter((r) => r.holes_played !== 9);
+    // WHS windows to the last 20 rounds — without this the index becomes a
+    // one-way ratchet (a career-best round counts forever).
+    const allRounds = (data || []).filter((r) => r.holes_played !== 9).slice(0, 20);
 
     if (allRounds.length < 3) {
       return json({

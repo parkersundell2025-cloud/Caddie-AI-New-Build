@@ -717,3 +717,46 @@ par default 4). Not yet committed.
   Xcode dev run. NOTE: Parker's "full version" (Live Activity with live
   score on lock screen / Dynamic Island) is separate native scope — quoted
   separately if he wants it.
+
+### Parker feedback batch — round-tracker defects (2026-07-27)
+
+Parker's email (2 days of on-course hole-by-hole use) reported two bugs +
+a handicap question. All inside the Phase 2.1 14-day defect window.
+
+- **"Undo" popup every hole — iOS shake-to-undo, not app code.** The string
+  exists nowhere in the codebase. Typed course name (RoundSetup input) seeds
+  the WKWebView undo stack; hours of cart/walk motion reads as shake
+  gestures → system "Undo Typing" alert. Fix: `applicationSupportsShakeToEdit
+  = false` in `AppDelegate.swift` (app uses no shake features). Compiles
+  (xcodebuild sim build clean); behavioral check rides the next Xcode dev
+  run. Ships with the NEXT iOS build — 1.2.2 (47) in review, untouched.
+  Parker's immediate workaround: Settings → Accessibility → Touch → Shake
+  to Undo → off.
+- **Coach opening referenced second-to-last round — stale session flag.**
+  Coach only regenerates its opening on "fresh app open"
+  (`appSessionState.js` in-memory flag); an app kept open through a round
+  (live tracking) shows the pre-round conversation. `resetCoachSessionFlag()`
+  existed for exactly this but had ZERO callers. Wired it at all four save
+  points: RoundTracker `handleSaved`, Progress `handleSaveRound` (quick
+  log), Home `handleSessionSubmit`, MyPlan `handleSessionComplete`. Also
+  added `created_date` tiebreaker to Coach's round query (same-date rounds
+  could invert "latest"). Verified end-to-end (Playwright, fixture
+  empty-state-test@silexdev.com, single browser session): coach opening #1
+  generated → quick-logged 93 at "Verify Links GC" → coach visit #2
+  regenerated, referencing "93 at Verify Links / 7 fairways". Test data
+  cleaned (round, leaderboard entry, chat messages; handicap intact 18.0).
+- **Handicap "dropped too fast" — verified with his data, math correct.**
+  His 5 rounds → differentials 12/12/7/6/5 (all ratings null → 72/113
+  defaults). At ≤6 rounds the formula uses the single best differential
+  × 0.96: 6.7 → 5.8 (78 on 7/26) → 4.8 (77 on 7/27). Two consecutive PBs
+  legitimately reset it twice. Latent defect found while verifying:
+  `calculateHandicap` used best-N of ALL TIME, not last 20 (WHS) — one-way
+  ratchet past 20 rounds. Fixed with `.slice(0, 20)` (rounds already
+  date-desc). No-op at current data sizes (max rounds/user = 5).
+  Deployed to dev 2026-07-28 (401 smoke check passed — JWT verification
+  intact); updateHandicap delegates to it so one deploy covers both.
+  updateLeaderboard's month-scoped copy unaffected by design.
+- **Feature asks parked for pricing:** live +/− running score on hole
+  screen (computeRunningStats already has the data); scorecard notation
+  on HoleStrip (square bogey / circle birdie / double-circle eagle) —
+  Parker sending a Claude Design mock.

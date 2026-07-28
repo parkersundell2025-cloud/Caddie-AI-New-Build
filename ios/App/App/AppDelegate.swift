@@ -7,7 +7,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Shake-to-undo pops iOS "Undo Typing" alerts over the round tracker:
+        // the typed course name seeds the WebView's undo stack, then hours of
+        // cart/walking motion reads as shake gestures. Nothing in the app uses
+        // shake, so disable it app-wide.
+        application.applicationSupportsShakeToEdit = false
         return true
     }
 
