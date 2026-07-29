@@ -135,6 +135,7 @@ export function getHarderDrill(drillName, excludeNames = []) {
 
 // Reduce rep count by 20%
 function reduceReps(repsStr) {
+  if (!repsStr) return repsStr;
   return repsStr.replace(/\d+/g, (num) => {
     const reduced = Math.round(parseInt(num, 10) * 0.8);
     return String(reduced);
@@ -220,7 +221,9 @@ export function applyProgressiveOverload(drill, allDrillRatings) {
     return {
       drill: {
         ...drill,
-        reps: reduceReps(drill.reps),
+        // Plan drills often carry only {name}; fall back to the library's
+        // reps text so the 20% reduction has something to work on
+        reps: reduceReps(drill.reps ?? currentDrillData.reps),
         _coachNote: 'Take your time with this one — consistency beats intensity.',
         _reduced: true,
       },

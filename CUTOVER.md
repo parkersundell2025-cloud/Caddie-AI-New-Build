@@ -355,6 +355,11 @@ npx supabase secrets set APNS_USE_SANDBOX=false   # PROD — TestFlight uses san
 
 # Resend (if used by any function directly — Supabase auth SMTP is separate)
 npx supabase secrets set RESEND_API_KEY=...
+
+# Phase 3 anti-cheat: who gets push-notified when a practice session is
+# flagged (comma-separated). Unset, logSession falls back to
+# admin@silexdev.com — in PROD this must be Parker's account email.
+npx supabase secrets set FLAG_ALERT_EMAILS=parkersundell2025@gmail.com
 ```
 
 > `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` are
