@@ -143,10 +143,21 @@ export default function MyPlan() {
 
   const handleBriefingStart = () => {
     setShowBriefing(false);
+    // Phase 3 anti-cheat: server-side session clock starts at the briefing's
+    // "start" tap (earliest-wins server-side)
+    if (selectedSession) {
+      supabase.functions.invoke('startSession', {
+        body: {
+          session_date: todayStr,
+          session_type: selectedSession.session_type,
+          session_day: selectedSession.day || todayName,
+        },
+      }).catch(() => {});
+    }
     setActiveSession(selectedSession);
   };
 
-  const handleSessionComplete = async ({ ratings, session }) => {
+  const handleSessionComplete = async ({ ratings, session, drillTimes }) => {
     const sessionDay = session.day || todayName;
     await supabase.functions.invoke('logSession', {
       body: {
@@ -165,6 +176,7 @@ export default function MyPlan() {
         drill_name: drill.name,
         rating: ratings[drill.name] || 'Okay',
         session_note: '',
+        elapsed_seconds: drillTimes?.[drill.name] ?? null,
       })),
       },
     });

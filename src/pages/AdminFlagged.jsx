@@ -9,6 +9,7 @@ export default function AdminFlagged() {
   const [user, setUser] = useState(null);
   const [flaggedRounds, setFlaggedRounds] = useState([]);
   const [flaggedAccounts, setFlaggedAccounts] = useState([]);
+  const [flaggedSessions, setFlaggedSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('rounds');
 
@@ -30,12 +31,14 @@ export default function AdminFlagged() {
 
   const load = async () => {
     setLoading(true);
-    const [rounds, accounts] = await Promise.all([
+    const [rounds, accounts, sessionFlags] = await Promise.all([
       unwrap(supabase.from('flagged_round').select('*').order('created_date', { ascending: false }).limit(100)),
       unwrap(supabase.from('flagged_account').select('*').order('created_date', { ascending: false }).limit(100)),
+      unwrap(supabase.from('flagged_session').select('*').order('created_date', { ascending: false }).limit(100)),
     ]);
     setFlaggedRounds(rounds);
     setFlaggedAccounts(accounts);
+    setFlaggedSessions(sessionFlags);
     setLoading(false);
   };
 
@@ -47,6 +50,13 @@ export default function AdminFlagged() {
   const updateAccount = async (id, status) => {
     await unwrap(supabase.from('flagged_account').update({ status }).eq('id', id).select().single());
     setFlaggedAccounts(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  };
+
+  // Like rounds, no forced leaderboard recalc here — the user's entry
+  // corrects on their next activity (updateLeaderboard runs per-user)
+  const updateSession = async (id, status) => {
+    await unwrap(supabase.from('flagged_session').update({ status }).eq('id', id).select().single());
+    setFlaggedSessions(prev => prev.map(s => s.id === id ? { ...s, status } : s));
   };
 
   // Render nothing while the navigate('/') redirect is in flight — prevents a
@@ -65,6 +75,8 @@ export default function AdminFlagged() {
   const resolvedRounds = flaggedRounds.filter(r => r.status !== 'pending');
   const pendingAccounts = flaggedAccounts.filter(a => a.status === 'pending');
   const resolvedAccounts = flaggedAccounts.filter(a => a.status !== 'pending');
+  const pendingSessions = flaggedSessions.filter(s => s.status === 'pending');
+  const resolvedSessions = flaggedSessions.filter(s => s.status !== 'pending');
 
   return (
     <div className="min-h-screen bg-background px-5 pt-12 pb-10 space-y-6 max-w-2xl mx-auto">
@@ -96,6 +108,12 @@ export default function AdminFlagged() {
         >
           Flagged Accounts ({pendingAccounts.length})
         </button>
+        <button
+          onClick={() => setTab('sessions')}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${tab === 'sessions' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+        >
+          Sessions ({pendingSessions.length})
+        </button>
       </div>
 
       {tab === 'rounds' && (
@@ -110,6 +128,25 @@ export default function AdminFlagged() {
               <div className="space-y-2">
                 {resolvedRounds.map(r => (
                   <FlaggedRoundCard key={r.id} item={r} resolved />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'sessions' && (
+        <div className="space-y-4">
+          {pendingSessions.length === 0 && <p className="text-center text-muted-foreground py-8">No pending flagged sessions.</p>}
+          {pendingSessions.map(s => (
+            <FlaggedSessionCard key={s.id} item={s} onApprove={() => updateSession(s.id, 'approved')} onIgnore={() => updateSession(s.id, 'ignored')} />
+          ))}
+          {resolvedSessions.length > 0 && (
+            <div className="pt-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-3">Resolved</p>
+              <div className="space-y-2">
+                {resolvedSessions.map(s => (
+                  <FlaggedSessionCard key={s.id} item={s} resolved />
                 ))}
               </div>
             </div>
@@ -172,6 +209,51 @@ function FlaggedRoundCard({ item, onApprove, onIgnore, resolved }) {
       <p className="text-xs text-destructive font-medium">
         {item.expected_score - item.logged_score} strokes better than expected
       </p>
+      {!resolved && (
+        <div className="flex gap-2">
+          <button onClick={onApprove} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-100 text-green-700 font-bold text-sm active:scale-95 transition-all">
+            <Check className="w-4 h-4" /> Approve
+          </button>
+          <button onClick={onIgnore} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-100 text-red-700 font-bold text-sm active:scale-95 transition-all">
+            <X className="w-4 h-4" /> Ignore
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FlaggedSessionCard({ item, onApprove, onIgnore, resolved }) {
+  return (
+    <div className="card-base p-4 space-y-3">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="font-bold text-sm text-foreground">{item.user_email}</p>
+          <p className="text-xs text-muted-foreground">{item.session_date} · {item.session_type}</p>
+        </div>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+          item.status === 'approved' ? 'bg-green-100 text-green-700' :
+          item.status === 'ignored' ? 'bg-red-100 text-red-700' :
+          'bg-yellow-100 text-yellow-700'
+        }`}>
+          {item.status}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-3 text-center bg-muted rounded-xl p-3">
+        <div>
+          <p className="text-lg font-black text-foreground">{item.measured_minutes ?? '—'}</p>
+          <p className="text-xs text-muted-foreground">Min taken</p>
+        </div>
+        <div>
+          <p className="text-lg font-black text-foreground">{item.expected_minutes ?? '—'}</p>
+          <p className="text-xs text-muted-foreground">Min expected</p>
+        </div>
+        <div>
+          <p className="text-lg font-black text-foreground">{item.drill_count}</p>
+          <p className="text-xs text-muted-foreground">Drills</p>
+        </div>
+      </div>
+      <p className="text-xs text-destructive font-medium">{item.reason}</p>
       {!resolved && (
         <div className="flex gap-2">
           <button onClick={onApprove} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-100 text-green-700 font-bold text-sm active:scale-95 transition-all">

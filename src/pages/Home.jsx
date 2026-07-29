@@ -83,6 +83,20 @@ export default function Home() {
     return plan.plan_data.sessions.find(s => s.day === dayName);
   };
 
+  // Phase 3 anti-cheat: stamp the server-side session clock the first time
+  // today's session is seen. Earliest-wins on the server, so the guard only
+  // avoids redundant network calls, not correctness.
+  useEffect(() => {
+    const session = getTodaySession();
+    if (!session || isRestSession(session) || completedToday) return;
+    const key = `caddie_session_started_${todayStr}_${session.session_type}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    supabase.functions.invoke('startSession', {
+      body: { session_date: todayStr, session_type: session.session_type, session_day: dayName },
+    }).catch(() => {});
+  }, [plan, completedToday]);
+
   const handleSessionSubmit = async ({ ratings, note }) => {
     const session = getTodaySession();
     if (!session) return;

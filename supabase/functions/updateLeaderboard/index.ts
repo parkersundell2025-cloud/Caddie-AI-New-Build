@@ -41,18 +41,25 @@ Deno.serve(async (req) => {
       profile.leaderboard_month_start = monthYear;
     }
 
-    // Count activity — exclude flagged rounds from scoring
-    const [roundsRes, sessionsRes, flaggedRoundsRes] = await Promise.all([
+    // Count activity — exclude flagged rounds and flagged sessions from scoring
+    const [roundsRes, sessionsRes, flaggedRoundsRes, flaggedSessionsRes] = await Promise.all([
       db.from('round').select('*').eq('user_email', user.email),
       db.from('session_log').select('*').eq('user_email', user.email),
       db.from('flagged_round').select('*').eq('user_email', user.email),
+      db.from('flagged_session').select('*').eq('user_email', user.email),
     ]);
     const rounds = roundsRes.data || [];
     const sessions = sessionsRes.data || [];
     const flaggedRounds = flaggedRoundsRes.data || [];
+    const flaggedSessions = flaggedSessionsRes.data || [];
 
     const excludedRoundIds = new Set(
       flaggedRounds.filter((f) => f.status !== 'approved').map((f) => f.round_id),
+    );
+    // Same semantics as rounds: pending AND ignored both excluded; only an
+    // admin-approved flag lets the session count again (Phase 3 anti-cheat)
+    const excludedSessionIds = new Set(
+      flaggedSessions.filter((f) => f.status !== 'approved').map((f) => f.session_log_id),
     );
 
     const { data: flaggedAccounts } = await db.from('flagged_account').select('*').eq('user_email', user.email);
@@ -63,9 +70,9 @@ Deno.serve(async (req) => {
       || profile.account_flag === 'test';
 
     const monthRounds = rounds.filter((r) => r.round_date >= monthStart && !excludedRoundIds.has(r.id));
-    const monthSessions = sessions.filter((s) => s.session_date >= monthStart && s.completed);
+    const monthSessions = sessions.filter((s) => s.session_date >= monthStart && s.completed && !excludedSessionIds.has(s.id));
     const weekRounds = rounds.filter((r) => r.round_date >= weekStart && !excludedRoundIds.has(r.id));
-    const weekSessions = sessions.filter((s) => s.session_date >= weekStart && s.completed);
+    const weekSessions = sessions.filter((s) => s.session_date >= weekStart && s.completed && !excludedSessionIds.has(s.id));
     const weekActivityScore = (weekRounds.length * 3) + (weekSessions.length * 1);
     const activityScore = (monthRounds.length * 3) + (monthSessions.length * 1);
 

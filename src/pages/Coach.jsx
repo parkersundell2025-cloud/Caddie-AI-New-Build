@@ -144,14 +144,34 @@ function buildSystemPrompt(profile, rounds, sessionLogs, drillRatings, plan, bad
     ? `Last 5 rounds: ${roundTraj.last5.join(', ')} (${roundTraj.trajectory}). Best this month: ${roundTraj.best30}. This month avg: ${roundTraj.avg30}, last month: ${roundTraj.avgPrev30}.`
     : 'No round history yet.';
 
+  const FAIRWAY_LABEL = { hit: 'hit', miss_left: 'missed LEFT', miss_right: 'missed RIGHT', na: 'n/a (par 3)' };
   const recentRounds = rounds.length === 0
     ? 'No rounds logged yet.'
     : rounds.slice(0, isPro ? rounds.length : 5).map(r => {
         const scrambling = (r.scrambling_saves != null && r.scrambling_attempts != null)
           ? ` Scrambling ${r.scrambling_saves}/${r.scrambling_attempts}.`
           : '';
-        return `${r.round_date}: ${r.total_score} at ${r.course_name || 'unknown course'}. FW ${r.fairways_hit}/${r.fairways_available}, GIR ${r.greens_in_regulation}/18, ${r.total_putts} putts.${scrambling}${r.notes ? ` Note: "${r.notes}"` : ''}`;
+        const base = `${r.round_date}: ${r.total_score} at ${r.course_name || 'unknown course'}. FW ${r.fairways_hit}/${r.fairways_available}, GIR ${r.greens_in_regulation}/18, ${r.total_putts} putts.${scrambling}${r.notes ? ` Note: "${r.notes}"` : ''}`;
+        if (!r.holes?.length) return base;
+        const holeLines = r.holes.map(h =>
+          `H${h.hole_number} par${h.par} score ${h.score}` +
+          (h.fairway ? `, FW ${FAIRWAY_LABEL[h.fairway] || h.fairway}` : '') +
+          (h.gir != null ? `, ${h.gir ? 'GIR' : 'no GIR'}` : '') +
+          (h.putts != null ? `, ${h.putts} putts` : '')
+        ).join(' | ');
+        return `${base}\n  Hole-by-hole: ${holeLines}`;
       }).join('\n');
+
+  // Pre-computed tally across all tracked rounds — the model should quote
+  // these counts rather than re-counting hole lines itself
+  const trackedHoles = rounds.flatMap(r => r.holes || []);
+  const missLeft = trackedHoles.filter(h => h.fairway === 'miss_left').length;
+  const missRight = trackedHoles.filter(h => h.fairway === 'miss_right').length;
+  const fwHit = trackedHoles.filter(h => h.fairway === 'hit').length;
+  const threePutts = trackedHoles.filter(h => h.putts >= 3).length;
+  const missPattern = trackedHoles.length === 0
+    ? 'No hole-by-hole tracked rounds yet (only round totals available).'
+    : `Across ${trackedHoles.length} tracked holes: fairways hit ${fwHit}, missed left ${missLeft}, missed right ${missRight}. Three-putt (or worse) holes: ${threePutts}.`;
 
   const recentSessions = sessionLogs.length === 0
     ? 'No sessions logged yet.'
@@ -231,6 +251,9 @@ ${roundContext}
 
 RECENT ROUNDS:
 ${recentRounds}
+
+FAIRWAY MISS PATTERN (pre-counted from hole-by-hole data — use these exact numbers):
+${missPattern}
 
 RECENT SESSIONS:
 ${recentSessions}
@@ -467,6 +490,19 @@ export default function Coach() {
         unwrap(supabase.from('weekly_insight').select('*').eq('user_email', user.email).order('week_of', { ascending: false }).limit(1)),
         unwrap(supabase.from('weekly_report').select('*').eq('user_email', user.email).order('week_of', { ascending: false }).limit(1)),
       ]);
+
+      // Per-hole detail (fairway miss direction, GIR, putts per hole) for
+      // recent hole-by-hole rounds — without this the coach only sees round
+      // totals and can't answer e.g. "was my majority miss left or right?"
+      const trackedRoundIds = roundList.slice(0, 10).map(r => r.id);
+      if (trackedRoundIds.length > 0) {
+        const holeRows = await unwrap(
+          supabase.from('round_hole').select('*').in('round_id', trackedRoundIds).order('hole_number', { ascending: true })
+        ).catch(() => []);
+        const byRound = {};
+        for (const h of holeRows || []) (byRound[h.round_id] ||= []).push(h);
+        roundList.forEach(r => { if (byRound[r.id]) r.holes = byRound[r.id]; });
+      }
 
       const profile = profiles[0] || null;
       const isProUser = !!(profile?.subscription_status === 'pro' && profile?.stripe_subscription_id);

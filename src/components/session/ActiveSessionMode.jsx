@@ -33,6 +33,10 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
   const [floatingPoints, setFloatingPoints] = useState(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const pointsIdRef = useRef(0);
+  // Phase 3 anti-cheat: per-drill elapsed time. Each drill's time runs from
+  // the previous rating tap (or mode open) to its own rating tap.
+  const drillClockRef = useRef(Date.now());
+  const drillTimesRef = useRef({});
 
   useEffect(() => {
     loadLeaderboard();
@@ -64,6 +68,9 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
     if (ratings[drillName] || isAdvancing) return;
     setIsAdvancing(true);
 
+    drillTimesRef.current[drillName] = Math.round((Date.now() - drillClockRef.current) / 1000);
+    drillClockRef.current = Date.now();
+
     const newRatings = { ...ratings, [drillName]: rating };
     setRatings(newRatings);
 
@@ -88,7 +95,7 @@ export default function ActiveSessionMode({ session, user, profile, drillRatings
       } else {
         // Last drill — trigger completion
         setIsAdvancing(false);
-        onComplete({ ratings: newRatings, session });
+        onComplete({ ratings: newRatings, session, drillTimes: { ...drillTimesRef.current } });
       }
     }, 1500);
   };

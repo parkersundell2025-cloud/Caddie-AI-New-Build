@@ -760,3 +760,89 @@ a handicap question. All inside the Phase 2.1 14-day defect window.
   screen (computeRunningStats already has the data); scorecard notation
   on HoleStrip (square bogey / circle birdie / double-circle eagle) —
   Parker sending a Claude Design mock.
+
+### Phase 3 — Anti-cheat systems (2026-07-28)
+
+Built and verified end-to-end in dev, sub-phase by sub-phase. Deviations
+from the SOW text tracked in PHASE3_DEVIATIONS.md (client-ready; Parker
+pre-approved push-over-WhatsApp by email). NOT YET COMMITTED.
+
+- **3.0 PHASE3_DEVIATIONS.md** — 8 deviation entries + Appendix A. NOTE:
+  drill library is 70 drills (SOW was right); the "89" told to Parker
+  earlier was our miscount — correct in next client email.
+- **3.1 Session timing** — migration `20260728163753_session_timing`
+  (session_log.started_at, duration_minutes); new `startSession` fn stamps
+  server-side, earliest-wins; logSession computes duration at submit (null
+  from pre-Phase-3 clients → checks skip). Stamps: Home first-sight of
+  today's session (localStorage day-guard) + MyPlan briefing "Let's Go".
+  Verified: guided run measured 1.1 min matching real elapsed; rest-day
+  negative test (no spurious stamp).
+- **3.2 Drill minimums** — `_shared/drillMinimums.ts`, all 70 drills, reps
+  parsed from text × (per-rep sec by category + 5s rest), floor 2.0 min;
+  full table + methodology in deviations Appendix A; 70/70 coverage
+  machine-checked. 4 duration-based drills use a 10-rep fallback.
+- **3.3 Flagging engine** — migration `20260728165247_flagged_session`
+  (mirrors flagged_round, admin RLS) + drill_rating.elapsed_seconds.
+  ActiveSessionMode timestamps each drill (rating-to-rating). logSession
+  checks (silent; submission unaffected): <15 min floor; 5+ drills <45 min;
+  duration < Σ drill minimums; per-drill under minimum (guided only);
+  interim ratings anomaly (≥10 history, ≥60% Struggled, ≥3-drill
+  all-Clicked). Verified: speed-run guided session → 1 flag, 3 reasons,
+  measured 0.1 vs expected 11 min; anomaly path → flag on seeded
+  100%-Struggled history; thresholds are constants atop logSession.
+- **3.4 Leaderboard enforcement** — updateLeaderboard excludes sessions
+  with flag status != 'approved' (same semantics as rounds) from month/week
+  activity + sessions_logged. Verified 3-state: 1 → 0 (pending) → 1
+  (approved).
+- **3.5 Admin alerts** — flag insert → notification rows for
+  FLAG_ALERT_EMAILS (secret; code default admin@silexdev.com — dev secret
+  NOT set, using default) → existing trg_notification_push delivers.
+  CUTOVER.md §7 updated: prod must set FLAG_ALERT_EMAILS to Parker's email.
+  Verified: notification row created with reason text.
+  **2026-07-29 full-device verification:** migration
+  `20260729140857_flagged_session_push_case` gives the type a proper push
+  title ("⚠️ Session flagged for review") + caddieai://admin/flagged deep
+  link (was generic fallback). Tony signed his iPhone (App Store build)
+  into admin@silexdev.com, enabled push (token registered) → test alert
+  delivered to LOCK SCREEN (sendPushNotification `sent:1`), tap deep-linked
+  to /admin/flagged. Chain proven: row → trigger → pg_net → function →
+  APNs → device → tap-through. NOTE: Tony's phone is now a live alert
+  recipient — real user flags will buzz him (intentional shakeout period).
+  Parker's device token exists + push_enabled; at cutover only the secret
+  flips. ALSO: Tony's TestFlight tester access was dropped — Parker's Apple
+  account apparently converted Individual → Organization; re-add tester in
+  ASC and watch for signing-asset ripple effects (1.2.3 build+upload
+  succeeded post-conversion, so nothing release-critical broken).
+- **3.6 Admin review** — third tab "Sessions" on /admin/flagged (min
+  taken/expected/drills grid + reason, Approve/Ignore). Verified in browser
+  as admin: pending card renders, Approve persists. Like rounds, no forced
+  recalc on status change — user's entry corrects at their next activity.
+- Deployed to dev: startSession (new), logSession, updateLeaderboard.
+  All test data cleaned (fixture rounds/sessions/ratings/flags/notifications
+  /badges/leaderboard; profile streak restored).
+- **Pending:** 3.7 round-pace check (optional, awaiting Tony's include/omit
+  call); commit approval; ships to native apps with next iOS build (web on
+  merge).
+
+### Coach hole-data + drill-crash fixes (2026-07-28, same commit as Phase 3)
+
+- **Coach can't see hole-by-hole data (Parker report, screenshot IMG_6766):**
+  Coach.jsx fed the LLM only round aggregates (FW 3/14), never round_hole —
+  so "was my majority miss left or right?" was unanswerable despite the data
+  existing. Fix: fetch round_hole for the 10 most recent rounds, append
+  compact per-hole lines to RECENT ROUNDS, plus a pre-counted FAIRWAY MISS
+  PATTERN block (hit/left/right + 3-putt counts) so the model quotes exact
+  tallies instead of miscounting. Covers opening message AND chat (opening
+  prompt embeds the system prompt). Verified E2E: seeded 18-hole round
+  (5 miss_left / 2 miss_right), asked Parker's exact question via Playwright
+  — coach replied "5 times left versus 2 times right". Test data cleaned.
+- **Guided-session blank-screen crash (found during Phase 3 testing):**
+  applyProgressiveOverload's Struggled-downgrade path called
+  reduceReps(drill.reps) but plan drills carry only {name} → undefined
+  .replace crash → blank ActiveSessionMode for any user with 2 recent
+  Struggled ratings on a drill. Fixed: null-guard in reduceReps + fall back
+  to the library drill's reps text. Repro script confirmed fixed.
+- **Parker's day-lock/round-cap email (2026-07-28):** round cap ALREADY
+  exists (logRound RULE 1a: 2/day, RULE 1b: 60/month) — tell him. Day-lock
+  sessions = new quotable item, two design flavors (strict vs one-per-day),
+  his pick. Draft reply folded into the Phase 3 delivery email (pending).
