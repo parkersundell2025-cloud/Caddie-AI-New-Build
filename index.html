@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- maximum-scale=1 stops iOS auto-zooming the whole WebView when a
+         sub-16px input is focused (the zoom persists across all SPA screens
+         until app restart — "app doesn't fit the screen"). Safari still
+         allows manual pinch-zoom regardless, so accessibility is preserved. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 
     <!-- Icons -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />

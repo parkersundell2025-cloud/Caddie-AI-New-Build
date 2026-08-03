@@ -846,3 +846,48 @@ pre-approved push-over-WhatsApp by email). NOT YET COMMITTED.
   exists (logRound RULE 1a: 2/day, RULE 1b: 60/month) — tell him. Day-lock
   sessions = new quotable item, two design flavors (strict vs one-per-day),
   his pick. Draft reply folded into the Phase 3 delivery email (pending).
+
+### 9-hole quick-log false flags + handicap corruption (Parker report, 2026-08-02)
+
+Parker correctly guessed the flagged rounds were 9-holers. Verified: ALL 9
+flagged rounds (4 users) were quick-logged 9-hole rounds — scores 40-55,
+putts 16-22, holes_played null (the quick-log form never asked). The
+plausibility flag caught every one (1:1 with `holes_played IS NULL AND
+total_score < 62`), mislabeled as cheating. Worse: they fed handicap math
+as 18-hole rounds — jonategolf@yahoo.com's stored handicap was 0 (scratch)
+from a 9-hole 40.
+
+- **Data repair:** `UPDATE round SET holes_played=9 WHERE holes_played IS
+  NULL AND total_score < 62` (9 rows, verified 0 remaining). Other 3 users'
+  handicaps were onboarding values (<3 counted rounds) — untouched.
+- **jonategolf recompute:** correct value = 5.3 (best of 85/78/84/79 with
+  stored ratings, formula-faithful SQL). Profile UPDATE to 5.3 PENDING
+  Tony's explicit approval (permission-gated). His August baseline not yet
+  stamped, so fixing before his next app-open prevents a 0 baseline.
+- **Form fix:** LogRoundModal gets a 9/18 "Holes Played" chip selector
+  (default 18) → holes_played flows through logRound's existing spread;
+  RULE 3 flag + calculateHandicap 9-hole exclusions then just work.
+  Browser-verified: quick-logged 9-hole 44 → saved holes_played=9, zero
+  flags, handicap unchanged. Test data cleaned.
+- July leaderboard note for the pending winner run: jonategolf's July entry
+  was computed with the corrupted 0 (baseline 11.8 → improvement capped
+  +3); eyeball July's winner selection with this in mind.
+
+### "App doesn't fit the screen" (Parker report, 2026-08-03)
+
+Parker: since a recent update, every page needs sideways swiping to find
+buttons; only vertical scroll wanted. Not reproducible in browser device
+emulation (his own attempt + our 18-page × 5-width Playwright overflow
+audit: ZERO horizontal overflow down to 320px). Root cause: iOS WebView
+auto-zoom — focusing any input with font-size < 16px (round tracker course
+name = 15px, quick-log inputs = 14px) zooms the entire WebView, and the
+zoom PERSISTS across all SPA screens until app restart. Hole-by-hole
+tracking (1.2.2) put a text input in Parker's daily flow, hence "one of
+the last updates." Fix: viewport meta gains `maximum-scale=1.0` (what
+stock Capacitor templates ship) — kills the automatic focus zoom; Safari
+still permits manual pinch-zoom by design so accessibility holds. Verified
+present in dist build. True device verification: after web deploy, focus
+the course-name input on caddieaiapp.com in iPhone Safari → no zoom.
+Ships to app users in 1.2.5 (1.2.4 approved same-day, already
+READY_FOR_SALE). Interim relief for Parker: force-close + reopen the app
+resets the zoom.

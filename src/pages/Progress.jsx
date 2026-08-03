@@ -37,6 +37,7 @@ function LogRoundModal({ onClose, onSave }) {
   const [form, setForm] = useState({
     course_name: '',
     round_date: new Date().toISOString().split('T')[0],
+    holes_played: 18,
     total_score: '',
     course_rating: '',
     slope_rating: '',
@@ -95,6 +96,23 @@ function LogRoundModal({ onClose, onSave }) {
           <div className="space-y-1.5">
             <label className={labelCls}>Date</label>
             <input type="date" className={inputCls} value={form.round_date} onChange={e => update('round_date', e.target.value)} />
+          </div>
+          {/* Without this, 9-hole scores read as impossible 18-hole rounds:
+              false plausibility flags + wrecked handicaps (seen in prod) */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>Holes Played</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[9, 18].map(h => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => update('holes_played', h)}
+                  className={`py-3 rounded-xl text-sm font-bold border transition-all ${form.holes_played === h ? 'bg-foreground text-background border-transparent' : 'bg-muted text-muted-foreground border-border'}`}
+                >
+                  {h} holes
+                </button>
+              ))}
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className={labelCls}>Total Score</label>
