@@ -891,3 +891,19 @@ the course-name input on caddieaiapp.com in iPhone Safari → no zoom.
 Ships to app users in 1.2.5 (1.2.4 approved same-day, already
 READY_FOR_SALE). Interim relief for Parker: force-close + reopen the app
 resets the zoom.
+
+### Play badge live + Android 1.2.5 (2026-08-03)
+
+Google Play approved the app (submitted 7/7). Android updated to parity:
+versionCode 74 / 1.2.5 (matching iOS numbering), built via gradlew
+bundleRelease (needs JAVA_HOME → Android Studio JBR; system has no Java),
+uploaded to Play production by Tony. Welcome page Play badge un-inerted
+(closes the 3c Play slice): anchor to the live listing, campaign relay via
+referrer UTM (utm_campaign=<c> — Play Console acquisition tracking),
+PlayStoreClick Pixel event. Browser-verified: organic = plain URL, ?c=tag
+= referrer carries tag, iOS badge regression-checked (pt+ct+mt intact).
+Also this session: iOS "Upgrade to Pro" dead-end diagnosed (Parker,
+app_store-billed: getUpgradeTarget sends him to iOS Settings where the
+inverted ASC subscription-group ranks — Basic level 1 ABOVE Pro level 2 —
+offer no upgrade). Fix pending: Tony drags Pro above Basic in ASC;
+routing change to in-app IAP upgrade proposed, not yet built.
