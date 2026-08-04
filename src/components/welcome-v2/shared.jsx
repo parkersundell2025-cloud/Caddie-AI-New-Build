@@ -1,4 +1,4 @@
-import { getAppStoreUrl, trackAppStoreClick } from '@/lib/campaign';
+import { getAppStoreUrl, trackAppStoreClick, getPlayStoreUrl, trackPlayStoreClick } from '@/lib/campaign';
 // Design tokens + shared primitives for the /welcome-preview landing page,
 // translated from the "The Cut" design mock.
 
@@ -136,14 +136,15 @@ export function StoreBadges({ placement = 'landing' }) {
           <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>App Store</div>
         </div>
       </a>
-      {/* Android listing isn't live yet — no repo URL for it, so this badge is inert */}
-      <div style={{ ...badgeStyle, cursor: 'default' }}>
+      <a href={getPlayStoreUrl()} onClick={() => trackPlayStoreClick(placement)}
+        target="_blank" rel="noopener noreferrer"
+        aria-label="Get Caddie AI on Google Play" style={badgeStyle}>
         <GooglePlayBadgeIcon />
         <div style={{ textAlign: 'left' }}>
           <div style={{ fontSize: 9, fontWeight: 600, lineHeight: 1 }}>Get it on</div>
           <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>Google Play</div>
         </div>
-      </div>
+      </a>
     </>
   );
 }

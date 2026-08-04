@@ -48,3 +48,25 @@ export function trackAppStoreClick(placement) {
     }
   } catch { /* never block the navigation */ }
 }
+
+// Play's campaign analog: the referrer param carries UTM values through the
+// install (Play Console → acquisition UTM tracking), mirroring Apple's ct=.
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.caddieaiapp.app';
+
+export function getPlayStoreUrl() {
+  const tag = getCampaign();
+  if (!tag) return PLAY_STORE_URL;
+  const referrer = encodeURIComponent(`utm_source=caddieai_welcome&utm_medium=web&utm_campaign=${tag}`);
+  return `${PLAY_STORE_URL}&referrer=${referrer}`;
+}
+
+export function trackPlayStoreClick(placement) {
+  try {
+    if (window.fbq) {
+      window.fbq('trackCustom', 'PlayStoreClick', {
+        campaign: getCampaign() || 'organic',
+        placement,
+      });
+    }
+  } catch { /* never block the navigation */ }
+}

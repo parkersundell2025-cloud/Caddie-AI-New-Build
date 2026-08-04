@@ -1,4 +1,5 @@
 import { getTrialDaysRemaining as getTrial, isTrialExpired } from './trialUtils';
+import { isNative } from './platform';
 
 export const PLANS = {
   basic: { name: 'Caddie AI Basic', priceId: 'price_1TOfvE2ZJRGxxJxRqXKmOVuf' },
@@ -34,14 +35,21 @@ export function hasExpiredTrial(profile) {
 
 // Where to send a user when they tap "Upgrade to Pro" / "Change Plan".
 // Branches on subscription_source so the surface matches the store the sub
-// came from — Apple Guideline 5.1.1 requires App Store subs to be changed in
-// iOS Settings, not via an in-app payment surface.
+// came from. Store-billed users on NATIVE get the in-app plan picker — an
+// upgrade purchase through the store's own sheet is fully 5.1.1-compliant
+// (the guideline restricts external payment links, not IAP), and StoreKit /
+// Play Billing handle the Basic→Pro crossgrade since both plans share one
+// subscription group. The old external-Settings link stranded upgraders on
+// a page with no upgrade path (found by Parker, 2026-08).
 export function getUpgradeTarget(profile) {
   const src = profile?.subscription_source;
   if (src === 'app_store' || src === 'mac_app_store') {
-    return { type: 'external', url: 'itms-apps://apps.apple.com/account/subscriptions' };
+    if (isNative()) return { type: 'internal', path: '/subscribe-now' };
+    // Web can't run the IAP flow — Apple's account page is the best we have
+    return { type: 'external', url: 'https://apps.apple.com/account/subscriptions' };
   }
   if (src === 'play_store') {
+    if (isNative()) return { type: 'internal', path: '/subscribe-now' };
     return { type: 'external', url: 'https://play.google.com/store/account/subscriptions' };
   }
   // Stripe explicit OR migrated user with Stripe linkage (Base44 imports
