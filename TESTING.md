@@ -907,3 +907,26 @@ app_store-billed: getUpgradeTarget sends him to iOS Settings where the
 inverted ASC subscription-group ranks — Basic level 1 ABOVE Pro level 2 —
 offer no upgrade). Fix pending: Tony drags Pro above Basic in ASC;
 routing change to in-app IAP upgrade proposed, not yet built.
+
+### IAP purchase lost to stale RC identity (found in sandbox, 2026-08-04)
+
+During the upgrade-fix test: Tony switched accounts mid-session (admin →
+tony.tamer21) and bought Basic in sandbox. RC attributed the purchase to an
+anonymous identity (his UUID's RC customer exists — sign-in logIn ran — but
+the purchase attached elsewhere); webhook fired 3× (200) but resolved to no
+profile → no provisioning → /checkout/success timed out → user bounced to
+paywall AFTER PAYING. Real-user exposure: anyone switching accounts in one
+app session before purchasing. Fixes (in 1.2.6/78):
+- SubscribeNow handleIOSPurchase now AWAITS identifyRevenueCatUser(current
+  user) immediately before purchasePackage — identity guaranteed at charge
+  time.
+- CheckoutSuccess timeout: native self-heal (re-identify + restorePurchases
+  → receipt re-anchors to current user) + one extra poll window before the
+  'manual' phase.
+- Follow-up candidate (not built): server-side syncSubscription fn (RC REST
+  lookup by auth UUID, provision profile directly) — bulletproof against
+  any webhook resolution gap; needs RC secret API key as function secret.
+Also this session: upgrade routing fix implemented (getUpgradeTarget →
+in-app /subscribe-now on native for store-billed; web → store account
+pages); ASC subscription group reordered Pro=level1 (was inverted, making
+Basic→Pro read as downgrade). Sandbox E2E of upgrade pending build 78.

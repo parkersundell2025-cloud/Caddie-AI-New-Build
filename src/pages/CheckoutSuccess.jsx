@@ -5,6 +5,8 @@ import Logo from '@/components/layout/Logo';
 import { CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { isAuthenticated, getCurrentUser, unwrap } from '@/lib/db';
+import { isNative } from '@/lib/platform';
+import { identifyRevenueCatUser, restorePurchases } from '@/lib/revenuecat';
 
 // Landing page after a successful Stripe Checkout.
 //
@@ -29,6 +31,25 @@ export default function CheckoutSuccess() {
     let cancelled = false;
     let pollTimer = null;
     let timeoutTimer = null;
+    let selfHealAttempted = false;
+
+    // Timeout usually means the purchase's webhook couldn't resolve this
+    // user (e.g. the receipt is attached to a stale/anonymous RC identity).
+    // Before surrendering to 'manual': re-assert the RC identity, restore
+    // purchases so the receipt re-anchors to THIS user, and give the
+    // resulting webhook events one more polling window.
+    const attemptSelfHeal = async (userId) => {
+      if (selfHealAttempted || !isNative()) return false;
+      selfHealAttempted = true;
+      try {
+        if (userId) await identifyRevenueCatUser(userId);
+        await restorePurchases();
+        return true;
+      } catch (e) {
+        console.warn('[CheckoutSuccess] self-heal restore failed:', e?.message);
+        return false;
+      }
+    };
 
     const init = async () => {
       const authed = await isAuthenticated();
@@ -66,7 +87,18 @@ export default function CheckoutSuccess() {
           .catch((e) => console.warn('[CheckoutSuccess] completeStripeCheckout threw:', e?.message));
       }
 
-      const start = Date.now();
+      let deadline = Date.now() + POLL_TIMEOUT_MS;
+      const onTimeout = async () => {
+        const healed = await attemptSelfHeal(user.id);
+        if (cancelled) return;
+        if (healed) {
+          deadline = Date.now() + POLL_TIMEOUT_MS;
+          return;
+        }
+        cancelled = true;
+        if (pollTimer) clearInterval(pollTimer);
+        setPhase('manual');
+      };
       const poll = async () => {
         if (cancelled) return;
         try {
@@ -98,23 +130,13 @@ export default function CheckoutSuccess() {
           // Soft fail; we'll try again on the next poll tick.
           console.warn('[CheckoutSuccess] poll error:', e?.message);
         }
-        if (Date.now() - start >= POLL_TIMEOUT_MS) {
-          cancelled = true;
-          if (pollTimer) clearInterval(pollTimer);
-          setPhase('manual');
-        }
+        if (Date.now() >= deadline) await onTimeout();
       };
 
       // Immediate first attempt — webhook may have already fired between
       // checkout completion and this page mounting.
       poll();
       pollTimer = setInterval(poll, POLL_INTERVAL_MS);
-      timeoutTimer = setTimeout(() => {
-        if (cancelled) return;
-        cancelled = true;
-        if (pollTimer) clearInterval(pollTimer);
-        setPhase('manual');
-      }, POLL_TIMEOUT_MS);
     };
 
     init();
