@@ -13,6 +13,7 @@ import {
   restorePurchases,
   planForPackage,
   hasAnyActiveEntitlement,
+  identifyRevenueCatUser,
 } from '@/lib/revenuecat';
 
 // Page ground — this route renders outside AppLayout, so it paints The Cut
@@ -375,6 +376,13 @@ export default function SubscribeNow() {
     }
 
     try {
+      // Guarantee the RC identity RIGHT BEFORE charging. The sign-in-time
+      // logIn is fire-and-forget and can be stale after an in-session account
+      // switch — a purchase made under an anonymous/previous identity reaches
+      // the webhook unresolvable and the paying user gets provisioned nothing
+      // (observed in sandbox, 2026-08-04).
+      const u = await getCurrentUser();
+      if (u?.id) await identifyRevenueCatUser(u.id);
       await purchasePackage(pkg);
       // ALWAYS route through /checkout/success after IAP, even when RC's
       // customerInfo already shows the entitlement. Why: /home is wrapped in
