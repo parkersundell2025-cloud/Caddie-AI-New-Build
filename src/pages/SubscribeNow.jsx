@@ -367,11 +367,12 @@ export default function SubscribeNow() {
     const pkg = offering?.availablePackages?.find((p) => planForPackage(p) === plan);
     if (!pkg) {
       setCheckoutLoading(null);
-      if (getPlatform() === 'android') {
-        setCheckoutError('The store is still setting up this subscription. Please try again in a few minutes.');
-        return;
-      }
-      startCheckout(plan);
+      // No silent Stripe web fallback on iOS anymore: a native user pushed
+      // into live Stripe checkout can be charged real money while the
+      // native provisioning path knows nothing about them (2026-08-04).
+      // Both platforms now surface a retryable error — offerings failures
+      // are transient (first-launch fetch races).
+      setCheckoutError('The store is still setting up this subscription. Please try again in a few minutes.');
       return;
     }
 

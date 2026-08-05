@@ -930,3 +930,27 @@ Also this session: upgrade routing fix implemented (getUpgradeTarget →
 in-app /subscribe-now on native for store-billed; web → store account
 pages); ASC subscription group reordered Pro=level1 (was inverted, making
 Basic→Pro read as downgrade). Sandbox E2E of upgrade pending build 78.
+
+### Upgrade-to-Pro E2E verified + provisioning hardening (2026-08-04/05)
+
+Full sandbox journey passed on Xcode dev build (tony.tamer21@gmail.com):
+fresh Google signup → Basic via Apple (restore path — Apple ID had active
+sandbox sub) → syncSubscription provisioned basic/app_store AUTOMATICALLY
+(no manual rescue) → onboarding → Upgrade to Pro stayed IN-APP on plan
+picker (routing fix) → Pro purchase as true upgrade (ASC rank fix) →
+PRODUCT_CHANGE webhook resolved → status pro within seconds. Parker's
+reported dead-end is closed; ships to stores in 1.2.6.
+
+New infrastructure this session:
+- `syncSubscription` edge fn: authoritative pull-based provisioning (RC v2
+  API by auth UUID → create/update profile). Secret REVENUECAT_API_V2_KEY
+  set on dev (NOTE: key was pasted in chat — rotate at cutover; add to
+  client project too, see CUTOVER.md secrets when updated).
+- CheckoutSuccess: sync-first activation; self-heal (re-identify + restore
+  + sync) before 'manual'. SubscribeNow: iOS silent Stripe fallback REMOVED
+  (both platforms show retryable error when offerings absent).
+- PLAN_FROM_PRODUCT + getPlan moved to _shared/planFromProduct.ts (webhook
+  + sync share one map). revenueCatWebhook redeployed WITH --no-verify-jwt
+  (verified: bare POST returns function's own 401, not gateway's).
+- Xcode dev-run loop adopted for device testing (sandbox IAP works; push
+  doesn't — dev builds register sandbox APNs).

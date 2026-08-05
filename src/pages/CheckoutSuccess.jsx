@@ -44,6 +44,8 @@ export default function CheckoutSuccess() {
       try {
         if (userId) await identifyRevenueCatUser(userId);
         await restorePurchases();
+        // Restore re-anchored the receipt — sync provisions from it directly
+        await supabase.functions.invoke('syncSubscription', { body: {} }).catch(() => {});
         return true;
       } catch (e) {
         console.warn('[CheckoutSuccess] self-heal restore failed:', e?.message);
@@ -85,6 +87,22 @@ export default function CheckoutSuccess() {
             }
           })
           .catch((e) => console.warn('[CheckoutSuccess] completeStripeCheckout threw:', e?.message));
+      }
+
+      // Primary activation: server-side authoritative sync. Asks RevenueCat
+      // what this user owns and provisions the profile directly — no
+      // dependency on webhook delivery/identity timing. Polling below stays
+      // as the fallback (and covers the Stripe web flow's webhook path).
+      try {
+        const { data: sync } = await supabase.functions.invoke('syncSubscription', { body: {} });
+        if (cancelled) return;
+        if (sync?.provisioned) {
+          setPhase('ready');
+          window.location.assign('/');
+          return;
+        }
+      } catch (e) {
+        console.warn('[CheckoutSuccess] syncSubscription failed:', e?.message);
       }
 
       let deadline = Date.now() + POLL_TIMEOUT_MS;
