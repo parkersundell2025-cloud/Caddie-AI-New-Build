@@ -29,6 +29,7 @@ import { WifiOff } from 'lucide-react';
 import WelcomeV2 from './pages/WelcomeV2';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import Giveaway from './pages/Giveaway';
 import DeleteAccount from './pages/DeleteAccount';
 import Onboarding from './pages/Onboarding';
 import SignIn from './pages/SignIn';
@@ -291,6 +292,7 @@ const AuthenticatedApp = () => {
             <Route path="/create-account" element={<CreateAccount />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/giveaway" element={<Giveaway />} />
             <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
