@@ -200,6 +200,14 @@ export default function Onboarding() {
       // First write — save form data without onboarding_complete
       await unwrap(supabase.from('user_profile').update(profileData).eq('id', existingProfile.id).select().single());
 
+      // Referral v1 (SOW 3b): now that referred_by_code is persisted, record
+      // the referral relationship (server resolves the referrer, blocks
+      // self-referral, ignores non-user/affiliate codes). Fire-and-forget —
+      // never block onboarding on it.
+      if (profileData.referred_by_code || existingProfile.referred_by_code) {
+        supabase.functions.invoke('recordReferral', { body: {} }).catch(() => {});
+      }
+
       // Initial handicap entry
       await unwrap(supabase.from('handicap_entry').insert({
         user_email: user.email,

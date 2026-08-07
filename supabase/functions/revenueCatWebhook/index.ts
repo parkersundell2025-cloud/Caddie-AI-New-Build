@@ -105,6 +105,25 @@ type AffiliateRow = {
 
 // Map an RC event type → commission row event_type, or null when this RC
 // event should not produce a commission row.
+// Referral v1: flip a referred user's pending referral to 'earned' (reward
+// owed) once they reach paid Pro. Idempotent — a no-op if there's no pending
+// referral for them. Fulfillment stays manual (admin flips earned→rewarded).
+async function maybeRewardReferral(db: ReturnType<typeof serviceClient>, referredEmail: string) {
+  try {
+    const { data, error } = await db.from('referral')
+      .update({ status: 'earned' })
+      .eq('referred_email', referredEmail.toLowerCase())
+      .eq('status', 'pending')
+      .select('id, referrer_email');
+    if (error) { console.warn('[revenueCatWebhook] referral reward flip failed:', error.message); return; }
+    if (data && data.length) {
+      console.log(`[revenueCatWebhook] referral EARNED: ${data[0].referrer_email} ← ${referredEmail}`);
+    }
+  } catch (e) {
+    console.warn('[revenueCatWebhook] referral reward flip threw:', (e as Error).message);
+  }
+}
+
 function mapEventTypeForCommission(rcEventType: string, isTrial: boolean):
   | 'initial_purchase' | 'renewal' | 'trial_converted' | 'refund' | 'refund_reversal' | null {
   if (rcEventType === 'INITIAL_PURCHASE' && !isTrial) return 'initial_purchase';
@@ -736,6 +755,15 @@ Deno.serve(async (req: Request) => {
     // events that shouldn't pay (TRIAL_STARTED, CANCELLATION, EXPIRATION, etc.)
     // so it's safe to call unconditionally here.
     if (userEmail) await writeAffiliateCommission(db, userEmail, event);
+
+    // Referral v1 (SOW 3b): reward the referrer once THIS user reaches PAID
+    // PRO. Gating on the resulting subscription_status='pro' (not 'trial')
+    // enforces the quote's "first paid Pro subscription, not a free signup"
+    // rule. The flip is idempotent (only pending→earned), so renewals are
+    // no-ops. Manual grant flips earned→rewarded later.
+    if (userEmail && updates.subscription_status === 'pro') {
+      await maybeRewardReferral(db, userEmail);
+    }
 
     return json({ success: true, email: userEmail, event: eventType, updated: updates });
   } catch (e) {

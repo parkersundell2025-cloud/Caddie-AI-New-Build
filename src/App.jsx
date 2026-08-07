@@ -55,6 +55,7 @@ import LeaderboardInfo from './pages/LeaderboardInfo';
 import AdminHome from './pages/AdminHome';
 import AdminAccounts from './pages/AdminAccounts';
 import AdminFlagged from './pages/AdminFlagged';
+import AdminReferrals from './pages/AdminReferrals';
 import SendFeedback from './pages/SendFeedback';
 import AdminFeedback from './pages/AdminFeedback';
 import AdminWaitlistCredits from './pages/AdminWaitlistCredits';
@@ -315,6 +316,7 @@ const AuthenticatedApp = () => {
             <Route path="/admin" element={<ProtectedRoute><AdminHome /></ProtectedRoute>} />
             <Route path="/admin/accounts" element={<ProtectedRoute><AdminAccounts /></ProtectedRoute>} />
             <Route path="/admin/flagged" element={<ProtectedRoute><AdminFlagged /></ProtectedRoute>} />
+            <Route path="/admin/referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="/admin/feedback" element={<ProtectedRoute><AdminFeedback /></ProtectedRoute>} />
             <Route path="/admin/waitlist-credits" element={<ProtectedRoute><AdminWaitlistCredits /></ProtectedRoute>} />
             <Route path="/admin/fix-user" element={<ProtectedRoute><AdminFixUser /></ProtectedRoute>} />

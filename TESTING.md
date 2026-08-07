@@ -979,3 +979,60 @@ Parker (buddy round) reported two bugs; screenshots IMG_6801/6802.
   intent ("2 rounds of 18 a day" = 36 holes). DECISION: change cap to count
   HOLES (36/day) not rounds. Awaiting friend's email to confirm the old cap
   fired on legit rounds (no phantom miscount) before shipping.
+
+### 3f scheduled push notifications (2026-08-07)
+
+Built the missing PROACTIVE layer (delivery pipeline already existed). SOW
+3f: scheduled job + copy + deep-link + frequency capping.
+
+- **runScheduledNotifications edge fn** (service-role gated via JWT role
+  claim, mirroring sendPushNotification — NOT env string-compare, which
+  drifts). v1 nudge = re-engagement: active push-opted-in subscriber with
+  prior activity, quiet 3–21 days, not nudged within 5-day cooldown → inserts
+  a 'nudge' notification ("Your practice plan is ready and waiting, {name}")
+  → existing trg_notification_push delivers. Test params: dryRun, onlyEmail,
+  ignoreCooldown.
+- **Scheduler** (migration 20260807150413): pg_cron enabled + job
+  'daily-scheduled-notifications' at 16:00 UTC daily (never 2am) → net.http_post
+  to the fn with vault service_role_key (reuses the push-trigger vault
+  secrets). Push trigger extended: 'nudge' type → title "Your plan is
+  waiting", deep-link caddieai://home.
+- **Helper:** scripts/run-scheduled-notifications.mjs (--dry / --only / --force).
+- **Verified:** dry→eligible(1); real→notification created(1); re-run→cap
+  skips(0); push_enabled=false→scanned 0 (excluded entirely). Fixture reset.
+- Deployed to dev: runScheduledNotifications. Cron job active (cron.job
+  confirmed). BACKEND-ONLY — no native push required to reach users.
+- NEXT (same scheduler now available): wire cleanupExpiredPendingUsers and
+  (if Parker wants) processMonthlyWinner onto pg_cron.
+
+### 3b Referral v1 (2026-08-07)
+
+Wired the user-to-user referral flow (table existed but had ZERO writers).
+Kept fully separate from the affiliate/influencer system. Manual fulfillment
+per quote — app records who's owed, human grants the free month.
+
+- **Migration 20260807182708:** referral.status enum → pending/earned/rewarded;
+  unique(lower(referred_email)) prevents double-referral.
+- **recordReferral edge fn:** called from Onboarding after referred_by_code is
+  saved. Resolves code→referrer via user_profile.referral_code, blocks
+  self-referral, ignores codes that aren't a real user's (affiliate codes),
+  idempotent. Verified (script, 2 fixtures): happy path (recorded, correct
+  referrer), idempotent (already_recorded), self-referral blocked, unknown
+  code → code_not_a_user. ALL PASS.
+- **revenueCatWebhook:** maybeRewardReferral flips pending→earned when the
+  referred user's resulting subscription_status='pro' (paid Pro only — trials
+  set status='trial' so excluded, matching "first paid Pro" rule). Idempotent.
+  Verified via the exact flip SQL: pending→earned once, 0 rows on re-run.
+  (Edge case documented: signup+immediate native purchase before onboarding
+  records the row → caught by admin review, not auto-flipped.)
+- **Admin /admin/referrals** (+ AdminHome link): Owed / Pending / Granted
+  sections, "Mark granted" flips earned→rewarded + stamps rewarded_at.
+  Browser-verified as admin: earned row shows in Owed, Mark granted moves it,
+  owed count → 0.
+- **REFERRALS.md** runbook: Stripe-credit (web) vs RC promotional entitlement
+  (Apple/Play) grant steps.
+- Deployed to dev: recordReferral (new), revenueCatWebhook (--no-verify-jwt).
+  Test fixtures cleaned.
+- NATIVE PUSH REQUIRED: the Onboarding recordReferral hook is in-app frontend
+  → reaches app users only on the next iOS + Android build. Backend (fn,
+  webhook, migration) + web-admin page are live immediately.
