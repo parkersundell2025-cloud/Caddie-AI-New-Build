@@ -254,13 +254,19 @@ export default function Progress() {
   };
 
   const triggerCelebration = (roundData) => {
+    // A 9-hole score (~half of 18) is not comparable to an 18-hole one: it
+    // always beats the 18-hole handicap threshold and would falsely win the
+    // personal-best check. Compare only against same-length rounds, and skip
+    // the 18-hole "played to handicap" line entirely for 9-hole rounds.
+    const is9 = roundData.holes_played === 9;
     const realRounds = rounds.filter(r => r.id && !r.id.startsWith('temp_'));
-    const prevBest = realRounds.length > 1 ? Math.min(...realRounds.slice(1).map(r => r.total_score)) : null;
+    const priorSameLength = realRounds.slice(1).filter(r => (r.holes_played === 9) === is9);
+    const prevBest = priorSameLength.length ? Math.min(...priorSameLength.map(r => r.total_score)) : null;
     const isPersonalBest = prevBest != null && roundData.total_score < prevBest;
     let popup;
     if (isPersonalBest) {
       popup = { emoji: '🎉', headline: 'Personal Best!', copy: "You just shot your best round ever. That's what the work is for." };
-    } else if (profile?.current_handicap != null && roundData.total_score <= Math.round(72 + profile.current_handicap)) {
+    } else if (!is9 && profile?.current_handicap != null && roundData.total_score <= Math.round(72 + profile.current_handicap)) {
       popup = { emoji: '🏌️', headline: 'Played to Your Handicap!', copy: `That's exactly what you're capable of. Solid round, ${profile?.first_name || 'golfer'}.` };
     } else {
       popup = { emoji: '✅', headline: 'Round Logged!', copy: "Every round you log is data that makes your coaching smarter." };

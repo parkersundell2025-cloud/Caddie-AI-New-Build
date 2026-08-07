@@ -27,7 +27,7 @@ export default function RoundSummary({ draft, onSaved, onEditHole }) {
       return;
     }
     if (data?.saved) {
-      onSaved({ total_score: s.totalScore, course_name: draft.course_name });
+      onSaved({ total_score: s.totalScore, course_name: draft.course_name, holes_played: draft.holes_planned });
     } else {
       setLimitHit(true);
     }

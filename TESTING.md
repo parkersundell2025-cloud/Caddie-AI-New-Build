@@ -954,3 +954,28 @@ New infrastructure this session:
   (verified: bare POST returns function's own 401, not gateway's).
 - Xcode dev-run loop adopted for device testing (sandbox IAP works; push
   doesn't — dev builds register sandbox APNs).
+
+### 9-hole false "Played to Your Handicap" + save-limit bugs (Parker, 2026-08-06)
+
+Parker (buddy round) reported two bugs; screenshots IMG_6801/6802.
+
+- **Bug 1 (fixed): false celebration on 9-hole rounds.** triggerCelebration
+  (Progress.jsx) compared raw total_score against 72+handicap (an 18-hole
+  figure) and computed personal-best across all rounds regardless of hole
+  count. A 9-hole score is ~half, so it ALWAYS beat the 18-hole threshold —
+  Parker's 9-hole 52 (handicap 5.8 → threshold 78) triggered "Played to Your
+  Handicap." Same 9-hole-blindness family as the handicap-corruption fix.
+  Cosmetic only (handicap math already excludes 9-hole). Fix: PB now compares
+  same-hole-count rounds only; the 18-hole "played to handicap" line is
+  skipped for 9-hole rounds. Also RoundSummary.jsx now passes holes_played in
+  the celebrate payload (hole-by-hole path previously omitted it). Verified
+  both directions (Playwright, fixture hcp 18): 9-hole 50 → "Round Logged!"
+  (no false praise); 18-hole 85 (<90) → "Played to Your Handicap" still
+  fires. Test data cleaned.
+- **Bug 2 (confirmed, fix pending Tony's-approved design): daily round cap
+  counts rounds not holes.** IMG_6801 = friend's 9-hole 36 blocked by
+  logRound RULE 1a "Round limit reached" (max 2 rounds/day). Counts any round
+  as 1, so two 9-holers (18 holes) exhaust it — half of Parker's stated
+  intent ("2 rounds of 18 a day" = 36 holes). DECISION: change cap to count
+  HOLES (36/day) not rounds. Awaiting friend's email to confirm the old cap
+  fired on legit rounds (no phantom miscount) before shipping.
