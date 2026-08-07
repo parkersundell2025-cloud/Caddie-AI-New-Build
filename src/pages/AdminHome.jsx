@@ -76,6 +76,13 @@ const ADMIN_ROUTES = [
         icon: Wallet,
         href: '/admin/affiliates/payouts',
       },
+      {
+        id: 'referrals',
+        label: 'Referrals',
+        description: 'User-to-user referrals — see who is owed a free month (grant manually)',
+        icon: Gift,
+        href: '/admin/referrals',
+      },
     ],
   },
 ];
