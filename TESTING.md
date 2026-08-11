@@ -1036,3 +1036,14 @@ per quote — app records who's owed, human grants the free month.
 - NATIVE PUSH REQUIRED: the Onboarding recordReferral hook is in-app frontend
   → reaches app users only on the next iOS + Android build. Backend (fn,
   webhook, migration) + web-admin page are live immediately.
+
+### Bug 2: daily round cap counts holes, not rounds (2026-08-10)
+
+Parker's friend's legit second nine was blocked by logRound RULE 1a (max 2
+rounds/day, counting any round as 1). Fixed to count HOLES: max 36/day (= "2
+rounds of 18", Parker's stated intent), legacy null holes_played = 18,
+tracked round = holes.length, quick-log = holes_played selector. Verified
+(script, fixture): four 9-hole rounds (36) all save; 5th nine (45) blocked;
+two 18s save, third 18 blocked. Backend-only (logRound edge fn) — DEPLOYED to
+dev, live immediately, NO app release needed. Fixture cleaned. Friend's email
+(pending from Parker) is now just an optional after-the-fact confirmation.

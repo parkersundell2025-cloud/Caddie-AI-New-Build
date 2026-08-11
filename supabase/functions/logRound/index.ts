@@ -81,8 +81,16 @@ Deno.serve(async (req) => {
     const { data: allRoundsData } = await db.from('round').select('*').eq('user_email', user.email);
     const allRounds = allRoundsData || [];
 
-    // RULE 1a: Max 2 rounds per day (silent ignore)
-    if (allRounds.filter((r) => r.round_date === todayStr).length >= 2) {
+    // RULE 1a: Max 36 holes per day (silent ignore). Counts HOLES, not rounds,
+    // so nine-hole players aren't capped at 18 holes/day — a friend's legit
+    // second nine was being blocked (Parker report, 2026-08). 36 = "two rounds
+    // of 18" a day, the intended limit. Legacy null holes_played = 18.
+    const holesOf = (r: { holes_played?: number | null }) => (r.holes_played === 9 ? 9 : 18);
+    const thisRoundHoles = tracked ? holes.length : (roundData.holes_played === 9 ? 9 : 18);
+    const holesToday = allRounds
+      .filter((r) => r.round_date === todayStr)
+      .reduce((sum, r) => sum + holesOf(r), 0);
+    if (holesToday + thisRoundHoles > 36) {
       return json({ success: true, saved: false });
     }
     // RULE 1b: Max 60 rounds per month
