@@ -259,12 +259,25 @@ export default function SubscribeNow() {
       const isCancellingButActive = profile && profile.subscription_status === 'cancelling' && hasPaymentLinkage && (!profile.trial_end_date || profile.trial_end_date >= today);
 
       if (isPaidSub || isValidTrial || isCancellingButActive) {
-        // Onboarding not done → send to onboarding flow first
+        // Paywall-last flow: onboarding happens before payment, so a paid user
+        // here is already onboarded → straight to home. The onboarding detour
+        // is kept only as a safety net for legacy users who paid under the old
+        // paywall-first order and never finished onboarding.
         if (!profile.onboarding_complete) {
           navigate('/onboarding', { replace: true });
           return;
         }
         navigate('/home', { replace: true });
+        return;
+      }
+
+      // Paywall-last invariant: you can't reach the paywall before onboarding.
+      // A signed-in user with no profile (or unfinished onboarding) who lands
+      // here directly — deep link, stale tab, old bookmark — is sent through
+      // onboarding first (it creates the profile and routes back here). Without
+      // this, they could pay before onboarding and fall back to the old order.
+      if (!profile || !profile.onboarding_complete) {
+        navigate('/onboarding', { replace: true });
         return;
       }
 

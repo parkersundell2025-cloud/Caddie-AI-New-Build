@@ -113,22 +113,23 @@ export default function Gateway() {
           }
         }
 
-        // Still no profile — send to subscribe
+        // Paywall-last flow: onboarding comes BEFORE payment now, so a brand-new
+        // user with no profile goes to onboarding (which creates the profile),
+        // not to the paywall.
         if (!profile) {
-          navigate('/subscribe-now', { replace: true });
+          navigate('/onboarding', { replace: true });
           return;
         }
 
-        // Has profile but no valid subscription — send to subscribe
+        // Profile exists but onboarding not finished — resume onboarding.
+        if (!profile.onboarding_complete) {
+          navigate('/onboarding', { replace: true });
+          return;
+        }
+
+        // Onboarded but no valid subscription — this is the paywall moment.
         if (!hasAccess(profile)) {
           navigate('/subscribe-now', { replace: true });
-          return;
-        }
-
-        // Has valid subscription but onboarding not complete — new user, fire CompleteRegistration
-        if (!profile.onboarding_complete) {
-          if (window.fbq) window.fbq('track', 'CompleteRegistration');
-          navigate('/onboarding', { replace: true });
           return;
         }
 
