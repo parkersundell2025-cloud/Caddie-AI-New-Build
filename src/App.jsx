@@ -108,22 +108,23 @@ function RootRoute() {
         console.log('[RootRoute] Profile subscription_status:', profile?.subscription_status);
         console.log('[RootRoute] Profile stripe_subscription_id:', profile?.stripe_subscription_id);
         
-        // Step 1: No UserProfile exists. Before bouncing to /subscribe-now,
-        // check if this signed-in email belongs to an affiliate. If it does,
-        // they're an influencer signing in to their dashboard (typical magic-
-        // link redirect overrides routed them through /). Otherwise it's a
-        // would-be app user without a subscription yet.
+        // Step 1: No UserProfile exists. Check if this signed-in email belongs
+        // to an affiliate (RLS scopes this select to the caller's own row). If
+        // it does, they're an influencer signing in to their dashboard (typical
+        // magic-link redirect overrides routed them through /). Otherwise it's a
+        // brand-new app user — paywall-last flow sends them to onboarding, which
+        // creates the profile; the paywall comes after onboarding, not before.
         if (!profile) {
           unwrap(supabase.from('affiliate').select('id').limit(1)).then(affs => {
             if (affs && affs.length > 0) {
               console.log('[RootRoute] NO PROFILE + affiliate row exists -> /affiliate/dashboard');
               setDestination('/affiliate/dashboard');
             } else {
-              console.log('[RootRoute] NO PROFILE - redirecting to /subscribe-now');
-              setDestination('/subscribe-now');
+              console.log('[RootRoute] NO PROFILE - redirecting to /onboarding (paywall-last)');
+              setDestination('/onboarding');
             }
           }).catch(() => {
-            setDestination('/subscribe-now');
+            setDestination('/onboarding');
           });
           return;
         }

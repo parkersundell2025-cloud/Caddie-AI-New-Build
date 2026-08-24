@@ -147,14 +147,31 @@ export default function Onboarding() {
 
       const existing = await unwrap(supabase.from('user_profile').select('*').eq('user_email', user.email));
 
-      // Never create a profile here. If none exists, the user reached onboarding without
-      // paying — send them back to subscribe. Subscription state is owned by the webhook layer.
-      if (existing.length === 0) {
-        navigate('/subscribe-now', { replace: true });
-        return;
+      // Paywall-last flow: onboarding is now the profile-creation point. A new
+      // user reaches here BEFORE paying, so if no profile exists we create one.
+      // Subscription/trial fields are deliberately left unset — the Stripe and
+      // RevenueCat webhooks still own those, and hasAccess() denies until a
+      // payment linkage lands. Lowercase user_email to satisfy the owner_insert
+      // RLS with_check and match the normalize trigger.
+      let existingProfile = existing[0];
+      if (!existingProfile) {
+        const userEmail = (user.email || '').toLowerCase().trim();
+        // subscription_status is explicitly null — the column DEFAULTS to
+        // 'trial', which would misrepresent an onboarded-but-unpaid user as a
+        // trialist. null = "no subscription yet" reads correctly in every gate
+        // (all deny without a payment linkage) AND makes abandoned-onboarding
+        // users a clean `subscription_status IS NULL` query for conversion
+        // metrics. The real 7-day trial still starts at payment via the webhooks.
+        existingProfile = await unwrap(
+          supabase.from('user_profile').insert({
+            user_email: userEmail,
+            first_name: user.full_name?.split(' ')[0] || 'Golfer',
+            subscription_status: null,
+            onboarding_complete: false,
+            tour_completed: false,
+          }).select().single()
+        );
       }
-
-      const existingProfile = existing[0];
 
       // Parse handicap with plus-prefix handling
       let currentHcp = form.current_handicap !== '' ? parseFloat(form.current_handicap) : 18;
@@ -234,6 +251,10 @@ export default function Onboarding() {
 
       // Finalize onboarding regardless of plan generation success.
       await unwrap(supabase.from('user_profile').update({ onboarding_complete: true }).eq('id', existingProfile.id).select().single());
+
+      // Paywall-last funnel: CompleteRegistration now fires when onboarding is
+      // truly finished (was in Gateway, firing pre-onboarding for paid users).
+      if (window.fbq) window.fbq('track', 'CompleteRegistration');
 
       // Now safe to clear referral code from localStorage
       if (refCode) localStorage.removeItem('caddie_ref_code');
@@ -626,8 +647,8 @@ export default function Onboarding() {
               );
             })()}
 
-            <button onClick={() => navigate('/plan')} className="w-full btn-primary py-4 text-base">
-              Enter Caddie →
+            <button onClick={() => navigate('/subscribe-now')} className="w-full btn-primary py-4 text-base">
+              Start Free Trial →
             </button>
           </motion.div>
         )}
