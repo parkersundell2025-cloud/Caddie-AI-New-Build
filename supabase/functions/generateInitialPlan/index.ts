@@ -41,16 +41,22 @@ Deno.serve(async (req) => {
     // Build plan prompt using user data (preserved verbatim from the Base44 function)
     const skillLabel = (v: number) => ['', 'Poor', 'Fair', 'Average', 'Good', 'Excellent'][v] || v;
 
-    const prompt = `Generate a personalized weekly golf practice plan for this golfer:
+    const prompt = `You are this golfer's personal coach. Produce TWO things: a "coach's take" and a weekly practice plan.
 
+Golfer profile:
 Current Level: ${skillLabel(profile.skill_driving as number)}/5 driving, ${skillLabel(profile.skill_iron_play as number)}/5 iron play, ${skillLabel(profile.skill_short_game as number)}/5 short game, ${skillLabel(profile.skill_putting as number)}/5 putting, ${skillLabel(profile.skill_course_management as number)}/5 course management.
 Current Handicap: ${profile.current_handicap}
 Goal: ${profile.goal_handicap} handicap in ${profile.target_timeline}
 Availability: ${profile.days_per_week} days/week on ${((profile.preferred_days as string[]) || []).join(', ')}
 Preferred Intensity: Medium (45 min sessions)
 
-Create a balanced 7-day plan with the right mix of drills. Use real drill names only. Include rest days. Return as JSON with structure:
+COACH'S TAKE: Write 2-3 sentences, speaking directly to the golfer as "you", the way their coach would. Reference their specific goal and timeline, name the weakest part of their game from the ratings above, and explain concretely how the plan will help them shoot lower scores. Be specific and genuinely encouraging, not generic marketing fluff. No greeting and no sign-off, just the take itself.
+
+PRACTICE PLAN: Create a balanced 7-day plan with the right mix of drills, weighted toward their weakest areas. Use real drill names only. Include rest days.
+
+Return as JSON with structure:
 {
+  "coachs_take": "Your goal of ... By ... you'll ...",
   "sessions": [
     { "day": "Monday", "session_type": "Range Day", "duration": 45, "title": "Long Game Focus", "drills": [{"name": "Drill Name", "reps": "description"}] }
   ]
@@ -61,6 +67,7 @@ Create a balanced 7-day plan with the right mix of drills. Use real drill names 
       response_json_schema: {
         type: 'object',
         properties: {
+          coachs_take: { type: 'string' },
           sessions: {
             type: 'array',
             items: {
