@@ -159,6 +159,43 @@ Deno.serve(async (req: Request) => {
 
     const db = serviceClient();
 
+    // #8 billing truth ledger. For web trials this is the ONLY server-side
+    // moment that sees the new subscription: the Stripe webhook endpoint is
+    // not subscribed to customer.subscription.created and RC's Stripe
+    // integration never learns about these customers (syncSubscription →
+    // no_rc_customer). Keyed on the Checkout Session id so the success page
+    // re-calling this function is a no-op in the ledger; the subscription id
+    // is in properties for joining against later webhook rows (trial →
+    // paid conversion arrives via stripeWebhook customer.subscription.updated).
+    const recordLedger = async (reason: string) => {
+      try {
+        const { error } = await db.rpc('record_billing_event', {
+          p_provider: 'stripe',
+          p_environment: session.livemode ? 'production' : 'sandbox',
+          p_provider_event_id: session.id,
+          p_event_type: isInTrial ? 'trial_started' : 'first_payment_succeeded',
+          p_user_id: user.id,
+          p_occurred_at: new Date(session.created * 1000).toISOString(),
+          p_properties: {
+            source_fn: 'completeStripeCheckout',
+            stripe_subscription_id: subscriptionId,
+            status: subObj?.status ?? null,
+            plan,
+            price_id: lineItemPriceId,
+            unit_amount: subObj?.items?.data?.[0]?.price?.unit_amount ?? null,
+            currency: session.currency ?? null,
+            amount_total: session.amount_total ?? null,
+            trial_end: trialEndISO,
+            applied: true,
+            reason,
+          },
+        });
+        if (error) console.warn('[completeStripeCheckout] billing ledger write failed:', error.message);
+      } catch (e) {
+        console.warn('[completeStripeCheckout] billing ledger write threw:', (e as Error)?.message);
+      }
+    };
+
     // Does a profile already exist? Web sign-ups via OAuth (Apple/Google) ->
     // Stripe checkout hit this function with NO existing profile, because
     // revenueCatWebhook only creates profiles for iOS-app events and there
@@ -187,6 +224,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: 'Profile update failed', detail: updErr.message }, 500);
       }
       console.log(`[completeStripeCheckout] Updated user_profile for ${userEmail} with ${JSON.stringify(updates)}`);
+      await recordLedger('profile_updated');
       return json({ success: true, created: false, updated: updates });
     }
 
@@ -224,6 +262,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Profile create failed', detail: insErr.message }, 500);
     }
     console.log(`[completeStripeCheckout] Created user_profile for ${userEmail} with ${JSON.stringify(insertPayload)}`);
+    await recordLedger('profile_created');
     return json({ success: true, created: true, profile: insertPayload });
   } catch (e) {
     const err = e as Error;

@@ -6,7 +6,9 @@ import { CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { isAuthenticated, getCurrentUser, unwrap } from '@/lib/db';
 import { isNative } from '@/lib/platform';
+import { hasActiveAccess } from '@/lib/subscription';
 import { identifyRevenueCatUser, restorePurchases } from '@/lib/revenuecat';
+import { track } from '@/lib/funnel';
 
 // Landing page after a successful Stripe Checkout.
 //
@@ -94,15 +96,26 @@ export default function CheckoutSuccess() {
       // dependency on webhook delivery/identity timing. Polling below stays
       // as the fallback (and covers the Stripe web flow's webhook path).
       try {
-        const { data: sync } = await supabase.functions.invoke('syncSubscription', { body: {} });
+        // functions.invoke does NOT throw on non-2xx — it returns { data, error }.
+        // The old code destructured only `data`, so a syncSubscription 500 (e.g.
+        // the trial-expiry defect) was swallowed silently and the user dropped to
+        // the polling fallback with no record of why. Read the error envelope and
+        // log it; the bounded poll + self-heal below remain the fallback. A failed
+        // sync must never imply the purchase failed or prompt a second purchase.
+        const { data: sync, error: syncError } = await supabase.functions.invoke('syncSubscription', { body: {} });
         if (cancelled) return;
-        if (sync?.provisioned) {
+        if (syncError) {
+          console.warn('[CheckoutSuccess] syncSubscription returned error:', syncError.message);
+        } else if (sync?.provisioned) {
+          // #8: the shared access predicate is what the destination renders on;
+          // this is distinct from the provider's purchase event.
+          track('access_confirmed', { properties: { destination: '/', source: 'sync' } });
           setPhase('ready');
           window.location.assign('/');
           return;
         }
       } catch (e) {
-        console.warn('[CheckoutSuccess] syncSubscription failed:', e?.message);
+        console.warn('[CheckoutSuccess] syncSubscription threw:', e?.message);
       }
 
       let deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -123,22 +136,20 @@ export default function CheckoutSuccess() {
           const rows = await unwrap(
             supabase
               .from('user_profile')
-              .select('subscription_status, revenuecat_app_user_id, stripe_customer_id')
+              .select('subscription_status, revenuecat_app_user_id, stripe_customer_id, trial_end_date')
               .eq('user_email', user.email),
           );
           const profile = rows?.[0];
-          // Webhook has landed if subscription_status is anything other than
-          // 'expired' AND there's a payment linkage (covers brand-new
-          // accounts that are seeded 'expired' too).
-          if (
-            profile &&
-            profile.subscription_status &&
-            profile.subscription_status !== 'expired' &&
-            (profile.revenuecat_app_user_id || profile.stripe_customer_id)
-          ) {
+          // Activation = the shared access predicate says yes (#7). The old
+          // check (status != 'expired' + a linkage) was looser than the gates
+          // downstream, so a profile could pass here and still get bounced.
+          // trial_end_date is selected because the predicate needs it.
+          if (hasActiveAccess(profile)) {
             cancelled = true;
             if (pollTimer) clearInterval(pollTimer);
             if (timeoutTimer) clearTimeout(timeoutTimer);
+            // #8: access confirmed via the webhook/poll path (vs. sync above).
+            track('access_confirmed', { properties: { destination: '/', source: 'poll' } });
             setPhase('ready');
             // Hand off to RootRoute — it routes /home or /onboarding.
             window.location.assign('/');

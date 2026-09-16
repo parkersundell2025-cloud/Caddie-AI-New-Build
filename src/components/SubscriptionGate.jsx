@@ -2,33 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
+import { hasActiveAccess } from '@/lib/subscription';
 import Logo from '@/components/layout/Logo';
 
-// Single source of truth for "is this user actually paid?". Mirrors RootRoute's
-// gate logic. Accepts either a Stripe linkage (web subs) or a RevenueCat linkage
-// (iOS/Android subs). Trial state additionally requires trial_end_date >= today.
-const hasActiveSubscription = (profile) => {
-  if (!profile) return false;
-
-  const hasPaymentLinkage = !!profile.stripe_customer_id || !!profile.revenuecat_app_user_id;
-  if (!hasPaymentLinkage) return false;
-
-  if (profile.subscription_status === 'trial') {
-    if (!profile.trial_end_date) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return profile.trial_end_date >= today;
-  }
-
-  // 'cancelling' = user opted to cancel at period end. They still have paid
-  // access until trial_end_date (or sub period end). Don't bounce them.
-  if (profile.subscription_status === 'cancelling') {
-    if (!profile.trial_end_date) return true; // no end date known — assume still active
-    const today = new Date().toISOString().split('T')[0];
-    return profile.trial_end_date >= today;
-  }
-
-  return ['basic', 'pro'].includes(profile.subscription_status);
-};
+// The access decision lives in @/lib/subscription (hasActiveAccess) so this
+// gate, Gateway, RootRoute, the paywall and the activation screen all agree (#7).
+const hasActiveSubscription = hasActiveAccess;
 
 export default function SubscriptionGate({ children }) {
   const [status, setStatus] = useState('loading');

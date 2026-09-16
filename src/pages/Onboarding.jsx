@@ -12,6 +12,7 @@ import { formatHandicap, capHandicap } from '@/lib/handicapUtils';
 import ClubDistancesStep from '@/components/onboarding/ClubDistancesStep';
 import { getDefaultDistances } from '@/lib/clubDistances';
 import { hasBasicOrBetter } from '@/lib/subscription';
+import { track, startFlow, newViewId } from '@/lib/funnel';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const FULL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -128,6 +129,20 @@ export default function Onboarding() {
   // Nullable: plan generation is allowed to fail without blocking onboarding.
   const [readyPlan, setReadyPlan] = useState(null);
 
+  // #8: one flow_id per onboarding → paywall → purchase journey.
+  useEffect(() => { startFlow(); }, []);
+
+  // #8: plan_preview_shown fires when the finish screen actually RENDERS —
+  // a plan row existing in the DB is not evidence anyone saw it.
+  useEffect(() => {
+    if (step !== 5) return;
+    track('plan_preview_shown', {
+      viewId: newViewId(),
+      planId: readyPlan?.id ?? null,
+      properties: { has_sessions: !!readyPlan?.plan_data?.sessions?.length },
+    });
+  }, [step]);
+
   const handleClubDistancesNext = (distances) => {
     setClubDistances(distances);
     setStep(4); // go to rate your game
@@ -233,23 +248,30 @@ export default function Onboarding() {
         note: 'Starting handicap'
       }).select().single());
 
-      // EMERGENCY UNBLOCK: swallow generateInitialPlan errors so users aren't
-      // blocked at onboarding when the function 404s. The function intermittently
-      // fails to find just-created profiles due to a Base44 read-after-write
-      // lag; until that's resolved properly, prefer "completed onboarding with
-      // possibly-empty /plan" over "stuck at the Build My Plan button."
+      // EMERGENCY UNBLOCK (kept): a failing generator must never strand the
+      // user at "Build My Plan" — onboarding completes either way. #9 fixes the
+      // *measurement*: functions.invoke does NOT throw on non-2xx, so a returned
+      // error used to be treated as success and the finish screen claimed the
+      // plan was ready when nothing was persisted. Read the error envelope, and
+      // decide "ready" from the plan row that actually exists, not the call.
+      let generationError = null;
       try {
-        await supabase.functions.invoke('generateInitialPlan', {
+        const { error: genErr } = await supabase.functions.invoke('generateInitialPlan', {
           body: {
             user_email: user.email,
             profile_id: existingProfile.id,
           },
         });
+        if (genErr) generationError = genErr?.message || 'generateInitialPlan returned an error';
       } catch (planErr) {
-        console.error('[Onboarding] generateInitialPlan failed, proceeding anyway:', planErr?.message);
+        generationError = planErr?.message || 'generateInitialPlan threw';
+      }
+      if (generationError) {
+        console.error('[Onboarding] generateInitialPlan failed, proceeding anyway:', generationError);
       }
 
-      // Finalize onboarding regardless of plan generation success.
+      // Finalize onboarding regardless of plan generation success — the user
+      // did complete the questionnaire; "has a usable plan" is a separate fact.
       await unwrap(supabase.from('user_profile').update({ onboarding_complete: true }).eq('id', existingProfile.id).select().single());
 
       // Paywall-last funnel: CompleteRegistration now fires when onboarding is
@@ -259,14 +281,23 @@ export default function Onboarding() {
       // Now safe to clear referral code from localStorage
       if (refCode) localStorage.removeItem('caddie_ref_code');
 
+      // Source of truth for "plan ready": an active practice_plan row with
+      // sessions actually persisted (the same definition the conversion
+      // investigation used). Not the invoke result.
+      let plan = null;
       try {
         const plans = await unwrap(
           supabase.from('practice_plan').select('*').eq('user_email', user.email).eq('is_active', true)
         );
-        setReadyPlan(plans[0] || null);
+        plan = plans[0] || null;
       } catch {
         // Finish screen falls back to the goal summary without a plan card
       }
+      const planReady = !!plan?.plan_data?.sessions?.length;
+      if (!planReady) {
+        console.warn('[Onboarding] no usable plan persisted after generation', { generationError });
+      }
+      setReadyPlan(plan);
 
       setStep(5);
     } catch (err) {
@@ -570,8 +601,15 @@ export default function Onboarding() {
               <Check className="w-7 h-7 text-cut-cream" strokeWidth={2.5} />
             </div>
             <div className="space-y-3">
+              {/* #9: only claim "ready" when a usable plan actually persisted.
+                  The goal-summary copy below already covers the no-plan case;
+                  the headline used to say "ready" regardless. */}
               <h2 className="cut-headline text-cut-ink text-[30px] leading-[1.08]">
-                Your plan is <span className="italic text-cut-green">ready</span>.
+                {readyPlan?.plan_data?.sessions?.length ? (
+                  <>Your plan is <span className="italic text-cut-green">ready</span>.</>
+                ) : (
+                  <>You're all <span className="italic text-cut-green">set</span>.</>
+                )}
               </h2>
               {readyPlan?.plan_data?.sessions?.length ? (
                 <p className="text-cut-ink-mute text-sm leading-relaxed max-w-[280px] mx-auto">

@@ -43,6 +43,14 @@ export default function SignIn() {
   useEffect(() => {
     const prefill = searchParams.get('email');
     if (prefill) setEmail(prefill);
+    // #6: the landing page sends the chosen tier as ?plan=. Supabase strips
+    // every query param from the auth redirect (see redirectTo note above), so
+    // it can't ride the magic-link / OAuth round-trip itself — persist it here,
+    // same-browser, exactly like affiliate ref attribution. The paywall reads it.
+    const plan = searchParams.get('plan');
+    if (plan === 'basic' || plan === 'pro') {
+      try { localStorage.setItem('caddie_selected_plan', plan); } catch { /* storage unavailable */ }
+    }
   }, [searchParams]);
 
   const sendMagicLink = async (e) => {
