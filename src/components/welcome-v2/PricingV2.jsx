@@ -87,7 +87,10 @@ export default function PricingV2() {
                     ))}
                   </div>
 
-                  <Link to="/signin" style={{
+                  {/* #6: carry the chosen tier through sign-in. Pro is the
+                      `best` card; Basic is the other. Gateway persists ?plan=
+                      so it survives the magic-link / OAuth round-trip. */}
+                  <Link to={`/signin?plan=${p.best ? 'pro' : 'basic'}`} style={{
                     marginTop: 28, padding: '16px 24px',
                     background: p.best ? L.green : 'transparent',
                     color: p.best ? L.bg : L.cream,

@@ -1,5 +1,5 @@
 import { corsHeaders, json } from '../_shared/cors.ts';
-import { serviceClient } from '../_shared/supabase.ts';
+import { serviceClient, getUser } from '../_shared/supabase.ts';
 import { invokeLLM } from '../_shared/anthropic.ts';
 
 Deno.serve(async (req) => {
@@ -7,8 +7,30 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // #8: server-authoritative plan-generation facts. The app invokes this with
+  // the user's JWT, so the caller id ties the event to the same identity as
+  // the client funnel events; service-to-service calls carry null. Emitting
+  // never throws and never blocks the plan.
+  const db = serviceClient();
+  const caller = await getUser(req).catch(() => null);
+  const callerId = caller?.id ?? null;
+  const emit = async (name: string, props: Record<string, unknown> = {}) => {
+    try {
+      const { error } = await db.rpc('track_funnel_event', {
+        p_event_id: crypto.randomUUID(),
+        p_event_name: name,
+        p_occurred_at: new Date().toISOString(),
+        p_producer: 'server',
+        p_user_id: callerId,
+        p_properties: props,
+      });
+      if (error) console.warn('[generateInitialPlan] funnel emit failed:', error.message);
+    } catch (e) {
+      console.warn('[generateInitialPlan] funnel emit threw:', (e as Error)?.message);
+    }
+  };
+
   try {
-    const db = serviceClient();
     const { user_email, profile_id } = await req.json();
 
     if (!user_email && !profile_id) {
@@ -27,6 +49,7 @@ Deno.serve(async (req) => {
       profile = data?.[0] ?? null;
     }
     if (!profile) {
+      await emit('plan_generation_failed', { code: 'profile_not_found' });
       return json({ error: 'Profile not found' }, 404);
     }
 
@@ -109,8 +132,15 @@ Return as JSON with structure:
     });
     if (error) throw error;
 
+    // Success is recorded only once a usable plan is actually persisted.
+    const sessions = (result as { sessions?: unknown[] })?.sessions;
+    await emit('plan_generation_succeeded', {
+      session_count: Array.isArray(sessions) ? sessions.length : 0,
+      has_coachs_take: !!(result as { coachs_take?: string })?.coachs_take,
+    });
     return json({ success: true });
   } catch (error) {
+    await emit('plan_generation_failed', { code: 'exception' });
     return json({ error: (error as Error).message }, 500);
   }
 });

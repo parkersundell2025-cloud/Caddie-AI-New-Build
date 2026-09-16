@@ -13,6 +13,7 @@ import { initializeAppSession } from '@/lib/appSessionState';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { isNative, NATIVE_URL_SCHEME } from '@/lib/platform';
+import { hasActiveAccess } from '@/lib/subscription';
 import { configureRevenueCat } from '@/lib/revenuecat';
 import { initMetaPixelWithATT } from '@/lib/meta-pixel';
 import { addPushTappedListener } from '@/lib/push-notifications';
@@ -102,7 +103,6 @@ function RootRoute() {
         supabase.from('user_profile').select('*').eq('user_email', user.email)
       ).then((profiles) => {
         const profile = profiles[0];
-        const today = new Date().toISOString().split('T')[0];
         
         console.log('[RootRoute] UserProfile found:', profile);
         console.log('[RootRoute] Profile subscription_status:', profile?.subscription_status);
@@ -136,40 +136,14 @@ function RootRoute() {
           return;
         }
         
-        // Step 2: Check subscription status on UserProfile.
-        // Payment linkage = either a Stripe customer (web flow) OR a RevenueCat
-        // app user id (native iOS/Android via Apple IAP / Google Play Billing).
-        // Has to mirror SubscriptionGate.hasActiveSubscription — otherwise a
-        // RevenueCat-linked paid user lands on / and gets bounced to
-        // /subscribe-now (visible after Apple IAP launches).
-        const hasPaymentLinkage = !!profile.stripe_customer_id || !!profile.revenuecat_app_user_id;
-        const isPaidSub = hasPaymentLinkage
-          && (profile.subscription_status === 'basic' || profile.subscription_status === 'pro');
-        const isValidTrial = profile.subscription_status === 'trial' &&
-          profile.trial_start_date &&
-          profile.trial_end_date &&
-          profile.trial_end_date >= today;
-        // 'cancelling' = scheduled cancel-at-period-end. Still has paid access
-        // until the period end date. Grant access.
-        const isCancellingButActive = profile.subscription_status === 'cancelling'
-          && (!profile.trial_end_date || profile.trial_end_date >= today);
-        // Grace period: fresh-signup trial users who haven't yet been linked to
-        // a Stripe subscription. trial_start_date / trial_end_date / today are
-        // all 'YYYY-MM-DD' strings — string comparison is correct here and
-        // avoids the UTC-midnight footgun that bit getTrialDaysRemaining.
-        const isGracePeriod = profile.subscription_status === 'trial' &&
-          profile.trial_start_date &&
-          profile.trial_end_date &&
-          profile.trial_end_date >= today &&
-          !profile.stripe_subscription_id &&
-          profile.trial_start_date >= today;
-        
-        console.log('[RootRoute] isPaidSub:', isPaidSub);
-        console.log('[RootRoute] isValidTrial:', isValidTrial);
-        console.log('[RootRoute] isGracePeriod:', isGracePeriod);
-        console.log('[RootRoute] isCancellingButActive:', isCancellingButActive);
+        // Step 2: the shared access decision (#7). RootRoute used to carry its
+        // own copy (which also demanded trial_start_date — stricter than the
+        // other gates). One predicate now keeps root, gate, paywall and the
+        // activation screen in agreement.
+        const active = hasActiveAccess(profile);
+        console.log('[RootRoute] hasActiveAccess:', active);
 
-        if (isPaidSub || isValidTrial || isGracePeriod || isCancellingButActive) {
+        if (active) {
           console.log('[RootRoute] Active subscription/trial - redirecting to /home');
           setDestination('/home');
           return;

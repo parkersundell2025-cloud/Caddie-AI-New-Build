@@ -85,19 +85,115 @@ export async function setRevenueCatSubscriberAttributes(attrs) {
   }
 }
 
-// Returns the dashboard-configured "current" offering's available packages,
-// or null on web / failure. UI uses this to render plan buttons.
-export async function getOfferings() {
-  if (!isNative()) return null;
+// #5: the paywall needs to know WHY there is no purchasable offering, not just
+// that there isn't one. getOfferings() collapsed "not on native", "SDK key
+// missing", "no current offering configured" and "fetch failed" into one null,
+// so the UI showed the same "store is still setting up" message for all four
+// and nothing could tell them apart. This returns a discriminated status.
+//   status: 'web' | 'not_configured' | 'unavailable' | 'error' | 'ready'
+export async function loadOfferings() {
+  if (!isNative()) return { status: 'web', offering: null, error: null };
   const ok = await configureRevenueCat();
-  if (!ok) return null;
+  if (!ok) return { status: 'not_configured', offering: null, error: null };
   try {
     const offerings = await Purchases.getOfferings();
-    return offerings?.current ?? null;
+    const current = offerings?.current ?? null;
+    if (!current || !current.availablePackages?.length) {
+      return { status: 'unavailable', offering: null, error: null };
+    }
+    return { status: 'ready', offering: current, error: null };
   } catch (e) {
     console.warn('[revenuecat] getOfferings failed:', e?.message);
-    return null;
+    return { status: 'error', offering: null, error: e?.message || 'offerings fetch failed' };
   }
+}
+
+// Back-compat: the dashboard-configured "current" offering, or null on web /
+// failure. Purchase-time callers still use this as a last-second re-check.
+export async function getOfferings() {
+  const { offering } = await loadOfferings();
+  return offering;
+}
+
+// Mirrors the SDK's INTRO_ELIGIBILITY_STATUS enum (numeric). Kept local so the
+// pure helpers below (and their tests) don't depend on the native plugin.
+export const INTRO_ELIGIBILITY = {
+  UNKNOWN: 0,
+  INELIGIBLE: 1,
+  ELIGIBLE: 2,
+  NO_INTRO_OFFER_EXISTS: 3,
+};
+
+// iOS-only per the SDK: whether THIS user can still take the intro/trial offer.
+// Returns a map productId → status. Never throws; anything we can't determine
+// (web, Android, unconfigured, rejected) is UNKNOWN — and per the SDK's own
+// guidance, UNKNOWN must be rendered as the non-intro price, not as a trial.
+export async function getIntroEligibility(productIdentifiers) {
+  const unknownAll = Object.fromEntries((productIdentifiers || []).map((id) => [id, INTRO_ELIGIBILITY.UNKNOWN]));
+  if (!isNative() || getPlatform() === 'android' || !productIdentifiers?.length) return unknownAll;
+  const ok = await configureRevenueCat();
+  if (!ok) return unknownAll;
+  try {
+    const map = await Purchases.checkTrialOrIntroductoryPriceEligibility({ productIdentifiers });
+    const out = { ...unknownAll };
+    for (const id of productIdentifiers) {
+      const status = map?.[id]?.status;
+      out[id] = typeof status === 'number' ? status : INTRO_ELIGIBILITY.UNKNOWN;
+    }
+    return out;
+  } catch (e) {
+    console.warn('[revenuecat] eligibility check failed:', e?.message);
+    return unknownAll;
+  }
+}
+
+// ISO-8601 subscription period (P1W / P1M / P3M / P1Y) → short suffix.
+export function periodLabelFromIso(iso) {
+  const m = /^P(\d+)([DWMY])$/.exec(iso || '');
+  if (!m) return '';
+  const n = Number(m[1]);
+  const unit = { D: 'day', W: 'wk', M: 'mo', Y: 'yr' }[m[2]];
+  return n === 1 ? `/${unit}` : `/${n} ${unit}`;
+}
+
+function trialLabel(value, unit) {
+  const u = String(unit || '').toUpperCase();
+  const word = { DAY: 'day', WEEK: 'week', MONTH: 'month', YEAR: 'year' }[u];
+  if (!word || !value) return null;
+  return `${value}-${word} free trial`;
+}
+
+// Pure. Describes what the store can ACTUALLY sell for a package, so the paywall
+// renders the real localized price/period and only promises a trial when one
+// genuinely exists for this user. Returns:
+//   { priceString, pricePerMonthString, periodLabel, trial: { label, certain } | null }
+// iOS: a free trial is introPrice with price 0 — shown only when eligibility is
+//      ELIGIBLE (certain). UNKNOWN / INELIGIBLE / NO_INTRO → no trial wording.
+// Android: eligibility is always UNKNOWN, so the honest signal is the base
+//      plan's freePhase (amountMicros 0). Play still decides at purchase time,
+//      so it's marked certain:false and the store sheet remains authoritative.
+export function describeOffer(pkg, eligibilityStatus, platform = getPlatform()) {
+  const product = pkg?.product;
+  if (!product) return null;
+  const priceString = product.priceString || '';
+  const pricePerMonthString = product.pricePerMonthString || null;
+  const periodLabel = periodLabelFromIso(product.subscriptionPeriod);
+
+  let trial = null;
+  if (platform === 'android') {
+    const free = product.defaultOption?.freePhase;
+    if (free && free.price?.amountMicros === 0) {
+      const label = trialLabel(free.billingPeriod?.value, free.billingPeriod?.unit);
+      if (label) trial = { label, certain: false };
+    }
+  } else {
+    const intro = product.introPrice;
+    if (intro && intro.price === 0 && eligibilityStatus === INTRO_ELIGIBILITY.ELIGIBLE) {
+      const label = trialLabel(intro.periodNumberOfUnits, intro.periodUnit);
+      if (label) trial = { label, certain: true };
+    }
+  }
+  return { priceString, pricePerMonthString, periodLabel, trial };
 }
 
 // Opens Apple's IAP sheet for the given package. Throws on cancel / billing

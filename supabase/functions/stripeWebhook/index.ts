@@ -80,6 +80,69 @@ function mapStatus(stripeStatus: Stripe.Subscription.Status, plan: 'basic' | 'pr
   }
 }
 
+// ── Billing truth ledger (CONVERSION_FIXES #8) ──────────────────────────────
+// Web (Stripe) trials and payments never reach revenueCatWebhook — RC's Stripe
+// integration doesn't know these customers (syncSubscription reports
+// no_rc_customer for them) — so this webhook is the only place a Stripe-side
+// trial_started / first_payment_succeeded fact can be recorded. One row per
+// Stripe delivery keyed on event.id; Stripe retries dedupe in the RPC.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function ledgerEventTypeForStripe(
+  eventType: string,
+  status: string | null | undefined,
+  previousStatus: string | null | undefined,
+  cancelAtPeriodEnd: boolean | null | undefined,
+): string {
+  if (eventType === 'customer.subscription.deleted') return 'expiration';
+  if (eventType === 'customer.subscription.created') {
+    return status === 'trialing' ? 'trial_started' : status === 'active' ? 'first_payment_succeeded' : 'subscription_created';
+  }
+  if (eventType === 'customer.subscription.updated') {
+    if (previousStatus === 'trialing' && status === 'active') return 'first_payment_succeeded';
+    if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') return 'expiration';
+    if (cancelAtPeriodEnd) return 'cancellation';
+    if (previousStatus === 'past_due' && status === 'active') return 'renewal_succeeded';
+    return 'subscription_updated';
+  }
+  return String(eventType || '').replace(/\W+/g, '_');
+}
+async function recordBillingEvent(
+  db: ReturnType<typeof serviceClient>,
+  event: Stripe.Event,
+  sub: Stripe.Subscription | null,
+  outcome: { applied: boolean; reason?: string; plan?: string | null },
+): Promise<void> {
+  try {
+    const prev = (event.data as { previous_attributes?: Record<string, unknown> }).previous_attributes ?? {};
+    const item = sub?.items?.data?.[0];
+    const supabaseUserId = String(sub?.metadata?.supabase_user_id || sub?.metadata?.rc_app_user_id || '');
+    const { error } = await db.rpc('record_billing_event', {
+      p_provider: 'stripe',
+      p_environment: event.livemode ? 'production' : 'sandbox',
+      p_provider_event_id: event.id,
+      p_event_type: ledgerEventTypeForStripe(event.type, sub?.status, prev.status as string | undefined, sub?.cancel_at_period_end),
+      p_user_id: UUID_RE.test(supabaseUserId) ? supabaseUserId : null,
+      p_occurred_at: new Date(event.created * 1000).toISOString(),
+      p_properties: {
+        stripe_event_type: event.type,
+        status: sub?.status ?? null,
+        previous_status: (prev.status as string | undefined) ?? null,
+        cancel_at_period_end: sub?.cancel_at_period_end ?? null,
+        plan: outcome.plan ?? null,
+        price_id: item?.price?.id ?? null,
+        unit_amount: item?.price?.unit_amount ?? null,
+        currency: item?.price?.currency ?? null,
+        trial_end: sub?.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+        applied: outcome.applied,
+        reason: outcome.reason ?? null,
+      },
+    });
+    if (error) console.warn('[stripeWebhook] billing ledger write failed:', error.message);
+  } catch (e) {
+    console.warn('[stripeWebhook] billing ledger write threw:', (e as Error)?.message);
+  }
+}
+
 let stripeClient: Stripe | null = null;
 function stripe(): Stripe {
   if (!stripeClient) {
@@ -186,6 +249,7 @@ Deno.serve(async (req) => {
     }
     if (!profiles || profiles.length === 0) {
       console.warn(`[stripeWebhook] no user_profile for stripe_customer_id=${customerId} (and no email match) — event ${event.type} dropped`);
+      await recordBillingEvent(db, event, sub, { applied: false, reason: 'no_profile' });
       // Ack so Stripe doesn't retry forever for an orphan customer.
       return json({ success: true, message: 'No profile for customer; skipped' });
     }
@@ -198,6 +262,7 @@ Deno.serve(async (req) => {
     const plan = item ? planFromSubscriptionItem(item) : null;
     if (!plan) {
       console.warn(`[stripeWebhook] could not derive plan from sub ${sub.id} — item.price=${item?.price?.id} item.product=${typeof item?.price?.product === 'string' ? item.price.product : item?.price?.product?.id}`);
+      await recordBillingEvent(db, event, sub, { applied: false, reason: 'plan_not_derivable' });
       return json({ success: true, message: 'Plan not derivable; skipped' });
     }
 
@@ -225,6 +290,7 @@ Deno.serve(async (req) => {
       }
     }
 
+    let updated = 0;
     for (const profile of profiles) {
       const { error: updErr } = await db
         .from('user_profile')
@@ -234,10 +300,16 @@ Deno.serve(async (req) => {
         console.error(`[stripeWebhook] update failed for profile ${profile.id}:`, updErr.message);
         // Keep going; one failure shouldn't block the others.
       } else {
+        updated += 1;
         console.log(`[stripeWebhook] updated ${profile.user_email}:`, JSON.stringify(updates));
       }
     }
 
+    await recordBillingEvent(db, event, sub, {
+      applied: updated > 0,
+      reason: updated > 0 ? 'profile_updated' : 'profile_update_failed',
+      plan,
+    });
     return json({ success: true, event: event.type, customer: customerId, updated: updates });
   } catch (e) {
     const err = e as Error;

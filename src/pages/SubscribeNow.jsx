@@ -1,20 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { RefreshCw, Zap, Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { unwrap, getCurrentUser } from '@/lib/db';
 import { useAuth } from '@/lib/AuthContext';
+import { hasActiveAccess } from '@/lib/subscription';
 import Logo from '@/components/layout/Logo';
 import { isNative, getPlatform, openExternal, NATIVE_URL_SCHEME } from '@/lib/platform';
 import {
   getOfferings,
+  loadOfferings,
+  getIntroEligibility,
+  describeOffer,
   purchasePackage,
   restorePurchases,
   planForPackage,
   hasAnyActiveEntitlement,
   identifyRevenueCatUser,
 } from '@/lib/revenuecat';
+import { track, newViewId, newAttemptId } from '@/lib/funnel';
 
 // Page ground — this route renders outside AppLayout, so it paints The Cut
 // ground itself instead of relying on the scoped theme class.
@@ -92,7 +97,12 @@ const FEATURES = [
   { l: 'Competitor Intel', d: 'How you stack up against the field', pro: true },
 ];
 
-function PlanRow({ plan, selected, onSelect }) {
+// #5: `offer` (from describeOffer) carries the store's REAL localized price and
+// period on native. When present it replaces the static catalog price; the
+// static value is only the web (Stripe) fallback.
+function PlanRow({ plan, selected, onSelect, offer }) {
+  const price = offer?.priceString || plan.price;
+  const per = offer ? offer.periodLabel : plan.per;
   return (
     <button
       onClick={() => onSelect(plan.id)}
@@ -124,11 +134,13 @@ function PlanRow({ plan, selected, onSelect }) {
             </span>
           )}
         </div>
-        <p className="text-[11px] text-cut-ink-mute mt-0.5 truncate">{plan.sub}</p>
+        <p className="text-[11px] text-cut-ink-mute mt-0.5 truncate">
+          {offer?.trial ? `${offer.trial.label}${offer.trial.certain ? '' : ' (if eligible)'} · ` : ''}{plan.sub}
+        </p>
       </div>
       <div className="flex items-baseline gap-0.5 flex-shrink-0">
-        <span className="font-mono text-lg font-bold text-cut-ink" style={{ letterSpacing: '-0.6px' }}>{plan.price}</span>
-        <span className="font-mono text-[11px] font-semibold text-cut-ink-mute">{plan.per}</span>
+        <span className="font-mono text-lg font-bold text-cut-ink" style={{ letterSpacing: '-0.6px' }}>{price}</span>
+        <span className="font-mono text-[11px] font-semibold text-cut-ink-mute">{per}</span>
       </div>
     </button>
   );
@@ -164,17 +176,33 @@ function FeatureList() {
 // Apple 3.1.2(c): subscription title/length/price + Terms (EULA) + Privacy
 // Policy must be visible within the app on the paywall. Build #34 was
 // rejected for missing the Terms + Privacy links here.
-function Disclosure() {
+// #6: the billing paragraph is platform-specific. The old copy said "Apple ID"
+// on Android and on web — inaccurate, and it names a cancellation route the
+// user doesn't have. iOS text is kept verbatim (Apple's expected wording).
+function billingDisclosure() {
+  const platform = getPlatform();
+  if (platform === 'ios') {
+    return 'Payment will be charged to your Apple ID account at confirmation of purchase. Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period, at the same price. You can manage and cancel your subscriptions at any time in your Apple ID account settings after purchase.';
+  }
+  if (platform === 'android') {
+    return 'Payment will be charged to your Google Play account at confirmation of purchase. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. You can manage and cancel your subscription at any time in Google Play → Subscriptions.';
+  }
+  return 'Payment is charged to your card at confirmation of purchase and your subscription renews monthly at the same price until cancelled. You can manage or cancel at any time from Manage Subscription in your account.';
+}
+
+// #5: on native, `byPlan` carries the store's real localized prices so the
+// mandatory price disclosure matches what the store sheet will actually show.
+// The static $15/$29 are the web (Stripe) prices and the fallback.
+function Disclosure({ byPlan }) {
+  const fmt = (offer, fallback) => (offer?.priceString ? `${offer.priceString}${offer.periodLabel || '/mo'}` : fallback);
   return (
     <div className="text-cut-ink-mute text-xs text-center leading-relaxed space-y-2 max-w-md mx-auto px-2">
       <p>
-        <span className="text-cut-ink-soft font-semibold">Caddie AI Basic — $15/month</span> · Auto-renewing monthly subscription.
+        <span className="text-cut-ink-soft font-semibold">Caddie AI Basic — {fmt(byPlan?.basic, '$15/month')}</span> · Auto-renewing monthly subscription.
         <br />
-        <span className="text-cut-ink-soft font-semibold">Caddie AI Pro — $29/month</span> · Auto-renewing monthly subscription.
+        <span className="text-cut-ink-soft font-semibold">Caddie AI Pro — {fmt(byPlan?.pro, '$29/month')}</span> · Auto-renewing monthly subscription.
       </p>
-      <p>
-        Payment will be charged to your Apple ID account at confirmation of purchase. Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period, at the same price. You can manage and cancel your subscriptions at any time in your Apple ID account settings after purchase.
-      </p>
+      <p>{billingDisclosure()}</p>
       <p>
         <a href="/terms" className="underline text-cut-ink-soft">Terms of Use (EULA)</a>
         {' · '}
@@ -184,7 +212,10 @@ function Disclosure() {
   );
 }
 
-function Hero() {
+// #5: `trial` is the resolved offer for the selected plan (null when the store
+// doesn't offer one, or we can't yet tell). The old copy promised a 7-day free
+// trial unconditionally, before checking whether the store would honor it.
+function Hero({ trial }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
       <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cut-gold-soft text-cut-gold text-[11px] font-bold uppercase" style={{ letterSpacing: '1.4px' }}>
@@ -195,7 +226,9 @@ function Hero() {
         A coach that <span className="italic text-cut-green">knows your game</span>.
       </h1>
       <p className="text-cut-ink-soft text-[13px] leading-relaxed max-w-xs">
-        Start your 7-day free trial. Cancel anytime. No commitment.
+        {trial
+          ? `Start your ${trial.label}${trial.certain ? '' : ' (if eligible)'}. Cancel anytime.`
+          : 'Cancel anytime. No commitment.'}
       </p>
     </motion.div>
   );
@@ -208,17 +241,115 @@ export default function SubscribeNow() {
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(false);
   const [restoreMsg, setRestoreMsg] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState(FREEMIUM_PREVIEW ? 'pro_annual' : 'pro');
+  // #8: whether the initial tier was an explicit choice (URL / persisted) or
+  // the Pro default — logged separately on paywall_shown, per the design.
+  const planIntentRef = useRef({ explicit: false });
+  // #8: one view_id per ACTUAL paywall presentation. Focus/visibility rechecks
+  // re-run init but must not count as a new view.
+  const paywallViewIdRef = useRef(null);
+
+  // #6: honor the tier the user picked on the landing page instead of always
+  // defaulting to Pro. Order: ?plan= on this URL → the value SignIn/Gateway
+  // persisted across the sign-in round-trip → 'pro'. Only basic/pro accepted.
+  const [selectedPlan, setSelectedPlan] = useState(() => {
+    if (FREEMIUM_PREVIEW) return 'pro_annual';
+    const fromUrl = new URLSearchParams(window.location.search).get('plan');
+    let stored = null;
+    try { stored = localStorage.getItem('caddie_selected_plan'); } catch { /* storage unavailable */ }
+    const intent = fromUrl || stored;
+    const explicit = intent === 'basic' || intent === 'pro';
+    planIntentRef.current = { explicit };
+    return explicit ? intent : 'pro';
+  });
   // Per-plan loading state so we can disable the relevant button while we
   // wait for the Checkout Session URL.
   const [checkoutLoading, setCheckoutLoading] = useState(null); // 'basic' | 'pro' | null
   const [checkoutError, setCheckoutError] = useState('');
+  // Paywall load state (#2): a failed profile read must surface a retry, never
+  // an endless spinner. loadError renders the retry screen; initRunRef guards a
+  // stale focus/visibility rerun from overwriting a newer run's result.
+  const [loadError, setLoadError] = useState(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const initRunRef = useRef(0);
+  // #4: guards duplicate checkout submissions — a rapid double-tap can fire
+  // before the disabled state re-renders.
+  const checkoutInFlightRef = useRef(false);
+
+  // #5: what the store can actually sell (native). status mirrors
+  // loadOfferings() — 'web' | 'loading' | 'not_configured' | 'unavailable' |
+  // 'error' | 'ready'. byPlan maps 'basic'|'pro' → describeOffer() so the rows,
+  // Hero, CTA and price disclosure render the REAL localized price/period and
+  // only promise a trial the store will honor. offering is kept so the purchase
+  // tap can reuse it instead of a second fetch.
+  const [offerState, setOfferState] = useState({
+    status: isNative() ? 'loading' : 'web', byPlan: {}, offering: null, error: null,
+  });
+  const [offerNonce, setOfferNonce] = useState(0);
+  const offerRunRef = useRef(0);
+
+  // Load offerings UP FRONT once the paywall is actually shown (old code only
+  // fetched after the Subscribe tap, so prices/eligibility were never rendered).
+  useEffect(() => {
+    if (FREEMIUM_PREVIEW || !isNative() || loading) return;
+    let cancelled = false;
+    const runId = ++offerRunRef.current;
+    const stale = () => cancelled || runId !== offerRunRef.current;
+    (async () => {
+      setOfferState((s) => ({ ...s, status: 'loading', error: null }));
+      const t0 = Date.now();
+      const res = await loadOfferings();
+      if (stale()) return;
+      if (res.status !== 'ready') {
+        // #8: which of the distinct failure reasons occurred (never the raw message).
+        track('offerings_failed', { properties: { status: res.status, code: res.status, latency_ms: Date.now() - t0 } });
+        setOfferState({ status: res.status, byPlan: {}, offering: null, error: res.error });
+        return;
+      }
+      const pkgs = res.offering.availablePackages || [];
+      track('offerings_loaded', {
+        offeringId: res.offering.identifier ?? null,
+        properties: { latency_ms: Date.now() - t0, offering_id: res.offering.identifier ?? null, package_count: pkgs.length },
+      });
+      const ids = pkgs.map((p) => p?.product?.identifier).filter(Boolean);
+      const eligibility = await getIntroEligibility(ids);
+      if (stale()) return;
+      const byPlan = {};
+      for (const pkg of pkgs) {
+        const plan = planForPackage(pkg);
+        if (plan === 'basic' || plan === 'pro') {
+          byPlan[plan] = describeOffer(pkg, eligibility[pkg.product.identifier]);
+        }
+      }
+      setOfferState({ status: 'ready', byPlan, offering: res.offering, error: null });
+    })();
+    return () => { cancelled = true; };
+  }, [loading, offerNonce]);
+
+  // Manual retry ONLY re-fetches the offering. It never re-runs a purchase and
+  // never falls back to another billing route (Play policy; iOS 2026-08-04).
+  const retryOffers = () => setOfferNonce((n) => n + 1);
+
+  // #8: an explicit tier choice — distinct from the initial default, which is
+  // logged on paywall_shown as initial_plan_default.
+  const onSelectPlan = (next) => {
+    if (next !== selectedPlan) {
+      track('plan_selected', { planId: next, properties: { previous: selectedPlan, current: next, explicit: true } });
+    }
+    setSelectedPlan(next);
+  };
 
   useEffect(() => {
     // Persist ref code from URL into localStorage so it survives Stripe checkout redirect
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
     if (refCode) localStorage.setItem('caddie_ref_code', refCode);
+    // #6: a signed-out visitor landing here with ?plan= is sent to /signin and
+    // would otherwise lose the tier they chose. Persist it (the auth redirect
+    // strips params) so it's honored when they come back through Gateway.
+    const plan = urlParams.get('plan');
+    if (plan === 'basic' || plan === 'pro') {
+      try { localStorage.setItem('caddie_selected_plan', plan); } catch { /* storage unavailable */ }
+    }
   }, []);
 
   useEffect(() => {
@@ -231,58 +362,128 @@ export default function SubscribeNow() {
       return () => { cancelled = true; };
     }
 
-    const init = async () => {
-      const u = await getCurrentUser();
-      if (!u) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const emailParam = urlParams.get('email');
-        const next = emailParam ? `/signin?email=${encodeURIComponent(emailParam)}` : '/signin';
-        navigate(next, { replace: true });
-        return;
-      }
-      if (cancelled) return;
-      setUser(u);
+    // Bounded fetch: a hung request must become a retryable error, not an
+    // endless spinner.
+    const withTimeout = (promise, ms) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('request timed out')), ms)),
+      ]);
 
-      // If they already have an active subscription or active trial, don't show
-      // them the plan selection again. A user who just completed Stripe checkout
-      // has subscription_status='trial' + a stripe_subscription_id — keeping
-      // them on this page would imply they need to subscribe again.
-      const profiles = await unwrap(
-        supabase.from('user_profile').select('*').eq('user_email', u.email)
-      );
-      if (cancelled) return;
-      const profile = profiles[0];
-      const today = new Date().toISOString().split('T')[0];
-      const hasPaymentLinkage = !!profile?.stripe_customer_id || !!profile?.revenuecat_app_user_id;
-      const isPaidSub = profile && ['basic', 'pro'].includes(profile.subscription_status) && profile.stripe_subscription_id;
-      const isValidTrial = profile && profile.subscription_status === 'trial' && hasPaymentLinkage && profile.trial_end_date && profile.trial_end_date >= today;
-      const isCancellingButActive = profile && profile.subscription_status === 'cancelling' && hasPaymentLinkage && (!profile.trial_end_date || profile.trial_end_date >= today);
+    const init = async ({ background = false } = {}) => {
+      // Monotonic run id: a stale focus/visibility rerun must never overwrite
+      // the state a newer run has already settled.
+      const runId = ++initRunRef.current;
+      const stale = () => cancelled || runId !== initRunRef.current;
 
-      if (isPaidSub || isValidTrial || isCancellingButActive) {
-        // Paywall-last flow: onboarding happens before payment, so a paid user
-        // here is already onboarded → straight to home. The onboarding detour
-        // is kept only as a safety net for legacy users who paid under the old
-        // paywall-first order and never finished onboarding.
-        if (!profile.onboarding_complete) {
+      // Don't force the spinner on here: the initial mount already starts in
+      // loading, and retryLoad sets it before re-running — so a focus/visibility
+      // recheck re-validates in the background without flashing the spinner.
+      // loadError is cleared on success (below), not up front, so a recheck
+      // can't flash the paywall over the error screen with unloaded data.
+      try {
+        const u = await getCurrentUser();
+        if (stale()) return;
+        if (!u) {
+          // getUser() needs the network, so being offline (or the auth server
+          // being unreachable) ALSO yields "no user". That is not signed-out:
+          // if a local session still exists, or the browser reports offline,
+          // treat it as transient and offer retry instead of bouncing a
+          // signed-in user to /signin (caught in the 2026-09-16 walkthrough).
+          const { data: { session } = {} } = await supabase.auth.getSession().catch(() => ({ data: {} }));
+          if (stale()) return;
+          if (session || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+            throw Object.assign(new Error('auth server unreachable'), { stage: 'auth' });
+          }
+          const urlParams = new URLSearchParams(window.location.search);
+          const emailParam = urlParams.get('email');
+          const next = emailParam ? `/signin?email=${encodeURIComponent(emailParam)}` : '/signin';
+          navigate(next, { replace: true });
+          return;
+        }
+        setUser(u);
+
+        // If they already have an active subscription or active trial, don't show
+        // them the plan selection again. A user who just completed Stripe checkout
+        // has subscription_status='trial' + a stripe_subscription_id — keeping
+        // them on this page would imply they need to subscribe again.
+        const profiles = await withTimeout(
+          unwrap(supabase.from('user_profile').select('*').eq('user_email', u.email)),
+          12000,
+        );
+        if (stale()) return;
+        const profile = profiles[0];
+
+        // #7: the shared access predicate. The old inline copy required a
+        // stripe_subscription_id for basic/pro, so a native Pro (RevenueCat id
+        // only) passed SubscriptionGate yet was never redirected off this page.
+        if (hasActiveAccess(profile)) {
+          // Paywall-last flow: onboarding happens before payment, so a paid user
+          // here is already onboarded → straight to home. The onboarding detour
+          // is kept only as a safety net for legacy users who paid under the old
+          // paywall-first order and never finished onboarding.
+          if (!profile.onboarding_complete) {
+            navigate('/onboarding', { replace: true });
+            return;
+          }
+          navigate('/home', { replace: true });
+          return;
+        }
+
+        // Paywall-last invariant: you can't reach the paywall before onboarding.
+        // A signed-in user with no profile (or unfinished onboarding) who lands
+        // here directly — deep link, stale tab, old bookmark — is sent through
+        // onboarding first (it creates the profile and routes back here). Without
+        // this, they could pay before onboarding and fall back to the old order.
+        if (!profile || !profile.onboarding_complete) {
           navigate('/onboarding', { replace: true });
           return;
         }
-        navigate('/home', { replace: true });
-        return;
-      }
 
-      // Paywall-last invariant: you can't reach the paywall before onboarding.
-      // A signed-in user with no profile (or unfinished onboarding) who lands
-      // here directly — deep link, stale tab, old bookmark — is sent through
-      // onboarding first (it creates the profile and routes back here). Without
-      // this, they could pay before onboarding and fall back to the old order.
-      if (!profile || !profile.onboarding_complete) {
-        navigate('/onboarding', { replace: true });
-        return;
+        if (window.fbq) window.fbq('track', 'InitiateCheckout');
+        // #8: paywall_shown fires once per ACTUAL presentation. Focus/visibility
+        // rechecks re-run init but reuse the view_id and skip this, so the
+        // event can be counted as unique views (unlike InitiateCheckout).
+        if (!paywallViewIdRef.current) {
+          paywallViewIdRef.current = newViewId();
+          track('paywall_shown', {
+            viewId: paywallViewIdRef.current,
+            planId: selectedPlan,
+            properties: {
+              variant: 'v1',
+              entry_source: planIntentRef.current.explicit ? 'landing_tier' : 'unknown',
+              initial_plan_default: !planIntentRef.current.explicit,
+            },
+          });
+        }
+        setLoadError(null);
+        setLoading(false);
+      } catch (err) {
+        if (stale()) return;
+        // Distinguish an expired/invalid session (send to sign-in) from a
+        // transient fetch failure (offer retry). Never resolve uncertainty by
+        // granting access — we only ever route forward on a positive read.
+        const msg = String(err?.message || err);
+        if (/jwt|token|unauthor|401|not.?authenticated|session/i.test(msg)) {
+          navigate('/signin', { replace: true });
+          return;
+        }
+        // A background recheck (focus/visibility) that fails transiently must
+        // not tear down a paywall the user is already looking at — what's on
+        // screen is still valid. Only the initial load and an explicit Try
+        // again surface the error screen (walkthrough 2026-09-16: going
+        // offline while ON the paywall swapped it for "Try again").
+        if (background && paywallViewIdRef.current) {
+          console.warn('[SubscribeNow] background recheck failed, keeping paywall:', msg);
+          return;
+        }
+        // #8: a recoverable load failure is a funnel fact (stage + sanitized code).
+        track('paywall_load_failed', {
+          properties: { stage: err?.stage ?? 'profile', code: /timed out/i.test(msg) ? 'timeout' : 'fetch_error' },
+        });
+        setLoadError("We couldn't load your account. Check your connection and try again.");
+        setLoading(false);
       }
-
-      if (window.fbq) window.fbq('track', 'InitiateCheckout');
-      setLoading(false);
     };
 
     init();
@@ -295,7 +496,7 @@ export default function SubscribeNow() {
     // on focus/visibility picks up the post-checkout state and redirects
     // them to /onboarding or /home automatically.
     const recheck = () => {
-      if (document.visibilityState === 'visible') init();
+      if (document.visibilityState === 'visible') init({ background: true });
     };
     window.addEventListener('focus', recheck);
     document.addEventListener('visibilitychange', recheck);
@@ -305,7 +506,7 @@ export default function SubscribeNow() {
       window.removeEventListener('focus', recheck);
       document.removeEventListener('visibilitychange', recheck);
     };
-  }, []);
+  }, [retryNonce]);
 
   // Server-side Stripe Checkout Session: createStripeCheckoutSession edge fn
   // creates a Session attached to the Supabase auth user's UUID
@@ -313,27 +514,58 @@ export default function SubscribeNow() {
   // browser to the Stripe-hosted checkout page. Replaces the buy.stripe.com
   // payment links which couldn't carry user identity through to RC.
   const startCheckout = async (plan) => {
+    if (checkoutInFlightRef.current) return;
+    checkoutInFlightRef.current = true;
     setCheckoutLoading(plan);
     setCheckoutError('');
-    // Capacitor (ios/android): Stripe redirects back to caddieai:// custom
-    // scheme so the OS reopens our app and the App plugin fires appUrlOpen,
-    // which the deep-link router in App.jsx forwards into the SPA.
-    // Web: standard origin-based redirect.
-    const body = isNative()
-      ? {
-          plan,
-          success_url: `${NATIVE_URL_SCHEME}://checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${NATIVE_URL_SCHEME}://subscribe-now`,
-        }
-      : { plan, return_url_origin: window.location.origin };
-
-    const { data, error } = await supabase.functions.invoke('createStripeCheckoutSession', { body });
-    if (error || !data?.session_url) {
-      setCheckoutError("Something went wrong starting checkout. Please try again or email support@caddieaiapp.com.");
+    // #8: one attempt id ties tap → session creation → outcome for this click.
+    const attemptId = newAttemptId();
+    const ev = (name, properties) => track(name, { attemptId, planId: plan, properties });
+    ev('purchase_tapped', { entry_source: isNative() ? 'native_stripe' : 'web' });
+    const fail = (msg, code) => {
+      ev('purchase_result', { outcome: 'error', code });
+      setCheckoutError(msg);
       setCheckoutLoading(null);
-      return;
+      checkoutInFlightRef.current = false;
+    };
+    try {
+      // Capacitor (ios/android): Stripe redirects back to caddieai:// custom
+      // scheme so the OS reopens our app and the App plugin fires appUrlOpen,
+      // which the deep-link router in App.jsx forwards into the SPA.
+      // Web: standard origin-based redirect.
+      const body = isNative()
+        ? {
+            plan,
+            success_url: `${NATIVE_URL_SCHEME}://checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${NATIVE_URL_SCHEME}://subscribe-now`,
+          }
+        : { plan, return_url_origin: window.location.origin };
+
+      ev('purchase_sdk_invoked');
+      const { data, error } = await supabase.functions.invoke('createStripeCheckoutSession', { body });
+      if (error || !data?.session_url) {
+        fail("Something went wrong starting checkout. Please try again or email support@caddieaiapp.com.", error ? 'session_error' : 'no_session_url');
+        return;
+      }
+      // Web: the outcome we can know is "handed to Stripe"; access_confirmed
+      // on /checkout/success is the completion signal.
+      ev('purchase_result', { outcome: 'redirected' });
+      await openExternal(data.session_url);
+      // Native: the system browser opens over the app and the user may come
+      // back (cancelled or done) with this page still mounted — re-enable the
+      // button for that return. Web: assign() navigates away; leaving it
+      // disabled prevents a second Checkout Session during the handoff.
+      if (isNative()) {
+        setCheckoutLoading(null);
+        checkoutInFlightRef.current = false;
+      }
+    } catch (e) {
+      // A THROWN invoke rejection or a failed openExternal used to bypass the
+      // handled-error branch above, leaving checkoutLoading stuck with no
+      // message. Catch the whole checkout-and-redirect operation.
+      console.warn('[SubscribeNow] startCheckout failed:', e?.message);
+      fail("Something went wrong starting checkout. Please try again or email support@caddieaiapp.com.", 'exception');
     }
-    await openExternal(data.session_url);
   };
 
   const handleRestoreAccess = async () => {
@@ -344,8 +576,9 @@ export default function SubscribeNow() {
         supabase.from('user_profile').select('*').eq('user_email', user.email)
       );
       const profile = profiles[0];
-      const activeStatuses = ['basic', 'pro'];
-      if (profile && activeStatuses.includes(profile.subscription_status) && profile.stripe_subscription_id) {
+      // #7: shared predicate — the old check demanded a stripe_subscription_id,
+      // so a native subscriber tapping Restore was told "no active subscription".
+      if (hasActiveAccess(profile)) {
         navigate('/home', { replace: true });
       } else {
         setRestoreMsg('No active subscription found yet. If you just subscribed, please wait a moment and try again.');
@@ -368,6 +601,18 @@ export default function SubscribeNow() {
     setCheckoutLoading(plan);
     setCheckoutError('');
 
+    // #8: one attempt id per tap; preflight failures (no package, no user,
+    // identity) are recorded as distinct reasons so "tapped but never reached
+    // the store" is measurable instead of invisible.
+    const attemptId = newAttemptId();
+    const offer = offerState.byPlan?.[plan] ?? null;
+    const ev = (name, properties, extra = {}) => track(name, { attemptId, planId: plan, properties, ...extra });
+    ev('purchase_tapped', {
+      price: offer?.priceString ?? null,
+      trial_eligibility: offer?.trial ? (offer.trial.certain ? 'eligible' : 'unknown') : 'none',
+      entry_source: 'native',
+    });
+
     // If RC can't produce a purchasable package (key missing, offering not
     // configured, store products not yet propagated, network failure) the
     // handling differs by store:
@@ -376,9 +621,12 @@ export default function SubscribeNow() {
     //     so we surface a retryable error instead and never open the browser.
     //   - iOS: the App Store tolerated the Stripe fallback during the RC
     //     rollout (see 3.1.1 note), so it's preserved for that platform only.
-    const offering = await getOfferings();
+    // #5: reuse the offering already loaded for the paywall; fall back to a
+    // last-second fetch only if it isn't there. Never auto-retry a purchase.
+    const offering = offerState.offering ?? await getOfferings();
     const pkg = offering?.availablePackages?.find((p) => planForPackage(p) === plan);
     if (!pkg) {
+      ev('purchase_preflight_failed', { reason: 'no_package' });
       setCheckoutLoading(null);
       // No silent Stripe web fallback on iOS anymore: a native user pushed
       // into live Stripe checkout can be charged real money while the
@@ -390,14 +638,32 @@ export default function SubscribeNow() {
     }
 
     try {
-      // Guarantee the RC identity RIGHT BEFORE charging. The sign-in-time
-      // logIn is fire-and-forget and can be stale after an in-session account
-      // switch — a purchase made under an anonymous/previous identity reaches
-      // the webhook unresolvable and the paying user gets provisioned nothing
-      // (observed in sandbox, 2026-08-04).
+      // Strict identity contract before charging (#3). identifyRevenueCatUser
+      // returns null on a RevenueCat logIn failure; the old code awaited it but
+      // ignored the result and purchased anyway — so a failed alignment could
+      // charge under an anonymous/stale identity the webhook can't resolve
+      // (paying user provisioned nothing, 2026-08-04). Require an authenticated
+      // user AND a successful alignment for THIS uuid; otherwise stop and let
+      // them retry. Never call the store on an unverified identity.
       const u = await getCurrentUser();
-      if (u?.id) await identifyRevenueCatUser(u.id);
+      if (!u?.id) {
+        ev('purchase_preflight_failed', { reason: 'no_user' });
+        setCheckoutError('Please sign in again to finish your purchase.');
+        setCheckoutLoading(null);
+        return;
+      }
+      const identified = await identifyRevenueCatUser(u.id);
+      if (!identified) {
+        console.warn('[SubscribeNow] identity alignment failed before purchase — blocked');
+        ev('purchase_preflight_failed', { reason: 'identity' });
+        setCheckoutError("We couldn't verify your account with the store. Please try again.");
+        setCheckoutLoading(null);
+        return;
+      }
+      const productId = pkg?.product?.identifier ?? null;
+      ev('purchase_sdk_invoked', {}, { productId });
       await purchasePackage(pkg);
+      ev('purchase_result', { outcome: 'success' }, { productId });
       // ALWAYS route through /checkout/success after IAP, even when RC's
       // customerInfo already shows the entitlement. Why: /home is wrapped in
       // SubscriptionGate which reads subscription_status from
@@ -412,7 +678,9 @@ export default function SubscribeNow() {
     } catch (err) {
       // RC throws PurchasesError on user-cancel — swallow silently. Surface
       // anything else (network, billing, App Store unavailable) to the UI.
-      if (!err?.userCancelled && !/cancel/i.test(err?.message || '')) {
+      const cancelled = !!err?.userCancelled || /cancel/i.test(err?.message || '');
+      ev('purchase_result', { outcome: cancelled ? 'cancel' : 'error', code: err?.code ?? null });
+      if (!cancelled) {
         setCheckoutError(err?.message || 'Purchase failed. Please try again.');
       }
       setCheckoutLoading(null);
@@ -439,6 +707,30 @@ export default function SubscribeNow() {
     setRestoring(false);
   };
 
+  // Recoverable load failure (#2): actionable retry, not an endless spinner.
+  // The selected tier is retained (selectedPlan is untouched by a retry).
+  const retryLoad = () => {
+    setLoadError(null);
+    setLoading(true);
+    setRetryNonce((n) => n + 1);
+  };
+
+  if (loadError) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-5 px-6 text-center" style={GROUND}>
+        <div style={{ filter: 'brightness(0) invert(1)' }}><Logo size="lg" /></div>
+        <p className="text-cut-ink-soft text-sm max-w-xs leading-relaxed">{loadError}</p>
+        <button
+          onClick={retryLoad}
+          className="px-6 py-3 rounded-full text-sm font-bold bg-cut-green text-cut-bg transition-all active:scale-95"
+          style={{ boxShadow: '0 0 20px rgba(95,190,126,.30)' }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-5" style={GROUND}>
@@ -457,10 +749,35 @@ export default function SubscribeNow() {
   const onPurchase = native ? handleIOSPurchase : startCheckout;
   const onRestore = native ? handleIOSRestore : handleRestoreAccess;
 
+  // #5: resolve what we may HONESTLY promise for the selected plan.
+  // Web: the Stripe Checkout Session is configured with the 7-day trial, so
+  // that promise is accurate. Native: only what describeOffer() found in the
+  // store's real offer for THIS user; nothing until the offering is ready.
+  const WEB_TRIAL = { label: '7-day free trial', certain: true };
+  const selectedOffer = native ? offerState.byPlan[selectedPlan] || null : null;
+  const selectedTrial = native
+    ? (offerState.status === 'ready' ? selectedOffer?.trial ?? null : null)
+    : WEB_TRIAL;
+  const offersReady = !native || offerState.status === 'ready';
+  const planName = selectedPlan === 'pro' ? 'Pro' : 'Basic';
+  const ctaLabel = checkoutLoading
+    ? 'Loading…'
+    : selectedTrial
+      ? `Start ${selectedTrial.label} — ${planName} →`
+      : `Subscribe — ${planName} →`;
+  // Distinct, truthful states instead of one "store is still setting up" line.
+  const offerNotice = !native ? null : ({
+    loading: 'Loading plans from the store…',
+    not_configured: "In-app purchases aren't available in this build.",
+    unavailable: "Plans aren't available from the store right now.",
+    error: "Couldn't reach the store.",
+  })[offerState.status] || null;
+  const offerRetryable = native && (offerState.status === 'unavailable' || offerState.status === 'error');
+
   return (
     <div className="min-h-screen px-5 py-8 flex flex-col items-center" style={GROUND}>
       <div className="w-full max-w-lg mx-auto space-y-6">
-        <Hero />
+        <Hero trial={selectedTrial} />
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <FeatureList />
@@ -473,8 +790,31 @@ export default function SubscribeNow() {
           transition={{ delay: 0.15 }}
           className="space-y-2"
         >
+          {offerNotice && (
+            <div
+              className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl text-xs"
+              style={{ background: 'rgba(244,239,227,.04)', border: '1px solid rgba(244,239,227,.10)' }}
+            >
+              <span className="text-cut-ink-soft">{offerNotice}</span>
+              {offerState.status === 'loading' ? (
+                <div className="w-4 h-4 border-2 rounded-full animate-spin flex-shrink-0" style={{ borderColor: 'rgba(244,239,227,.15)', borderTopColor: '#5FBE7E' }} />
+              ) : offerRetryable ? (
+                // Manual retry of the offering fetch only — never a purchase,
+                // never a silent switch to another billing route.
+                <button onClick={retryOffers} className="font-bold text-cut-green underline underline-offset-4 flex-shrink-0">
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          )}
           {(FREEMIUM_PREVIEW ? FREEMIUM_PLANS : PLANS).map((p) => (
-            <PlanRow key={p.id} plan={p} selected={selectedPlan === p.id} onSelect={setSelectedPlan} />
+            <PlanRow
+              key={p.id}
+              plan={p}
+              selected={selectedPlan === p.id}
+              onSelect={onSelectPlan}
+              offer={native ? offerState.byPlan[p.id] : undefined}
+            />
           ))}
         </motion.div>
 
@@ -495,11 +835,15 @@ export default function SubscribeNow() {
         ) : (
         <button
           onClick={() => onPurchase(selectedPlan)}
-          disabled={checkoutLoading !== null}
+          disabled={checkoutLoading !== null || !offersReady}
           className="w-full h-[54px] rounded-2xl text-sm font-bold bg-cut-green text-cut-bg transition-all active:scale-[0.98] disabled:opacity-60"
           style={{ boxShadow: '0 0 28px rgba(95,190,126,.30), inset 0 1px 0 rgba(255,255,255,.22)', letterSpacing: '0.2px' }}
         >
-          {checkoutLoading ? 'Loading…' : `Subscribe — ${selectedPlan === 'pro' ? 'Pro' : 'Basic'} →`}
+          {/* #5: trial wording appears only when the store's real offer (and,
+              on iOS, this user's eligibility) supports it; otherwise a plain
+              "Subscribe". On native the button stays disabled until the
+              offering is actually loaded, so a tap can never precede terms. */}
+          {ctaLabel}
         </button>
         )}
 
@@ -512,7 +856,7 @@ export default function SubscribeNow() {
           Your existing progress, rounds, sessions and coaching history are all saved and will be waiting for you when you subscribe.
         </p>
 
-        {FREEMIUM_PREVIEW ? null : <Disclosure />}
+        {FREEMIUM_PREVIEW ? null : <Disclosure byPlan={native ? offerState.byPlan : undefined} />}
 
         {FREEMIUM_PREVIEW ? null : (<>
         {/* Restore — required by Apple on the native paywall */}

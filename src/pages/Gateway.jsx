@@ -3,32 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/db';
 import { isNative } from '@/lib/platform';
+import { hasActiveAccess } from '@/lib/subscription';
 import Logo from '@/components/layout/Logo';
 
-const hasAccess = (profile) => {
-  if (!profile) return false;
-
-  // Must have either a Stripe linkage (web subs) or a RevenueCat linkage (iOS/Android subs)
-  const hasPaymentLinkage = !!profile.stripe_customer_id || !!profile.revenuecat_app_user_id;
-  if (!hasPaymentLinkage) return false;
-
-  // Trial state additionally requires the trial not be expired
-  if (profile.subscription_status === 'trial') {
-    if (!profile.trial_end_date) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return profile.trial_end_date >= today;
-  }
-
-  // 'cancelling' = user opted to cancel at period end, still has paid access
-  // until period end. Don't lock them out — they paid for this time.
-  if (profile.subscription_status === 'cancelling') {
-    if (!profile.trial_end_date) return true;
-    const today = new Date().toISOString().split('T')[0];
-    return profile.trial_end_date >= today;
-  }
-
-  return ['basic', 'pro'].includes(profile.subscription_status);
-};
+// Access decision is centralized in @/lib/subscription so Gateway, RootRoute,
+// SubscriptionGate, the paywall and the activation screen all agree (#7).
+const hasAccess = hasActiveAccess;
 
 // Supabase exchanges the magic-link / OAuth token in the URL into a session
 // asynchronously (detectSessionInUrl). Wait briefly for that to land.
@@ -58,6 +38,11 @@ export default function Gateway() {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
     if (refCode) localStorage.setItem('caddie_ref_code', refCode);
+    // #6: a direct/deep link may carry the chosen tier; persist it so the
+    // paywall honors it. (The auth redirect itself strips params — SignIn
+    // persists it before the round-trip for that path.)
+    const plan = urlParams.get('plan');
+    if (plan === 'basic' || plan === 'pro') localStorage.setItem('caddie_selected_plan', plan);
   }, []);
 
   useEffect(() => {

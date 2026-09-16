@@ -294,6 +294,63 @@ async function writeAffiliateCommission(
   }
 }
 
+// ── Billing truth ledger (CONVERSION_FIXES #8) ──────────────────────────────
+// One row per RC delivery in analytics.billing_events, keyed on
+// (provider, environment, event.id) so RC retries can never double-count a
+// trial or a payment. `event_type` is normalized to the funnel's vocabulary:
+// trial_started / first_payment_succeeded / renewal_succeeded, else the RC type
+// lowercased. `applied` tells the analyst whether the profile was actually
+// changed (phantom-guard rejections and unresolvable identities are recorded
+// with applied=false so "webhook arrived but no access" is measurable).
+// No email or receipt data goes in; user_id is the Supabase UUID only when RC
+// sent one as app_user_id. Never throws — the ack to RC must not depend on it.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function ledgerEventType(eventType: string, periodType: unknown): string {
+  const t = String(eventType || '').toUpperCase();
+  const trial = String(periodType || '').toUpperCase() === 'TRIAL';
+  if (t === 'TRIAL_STARTED' || (t === 'INITIAL_PURCHASE' && trial)) return 'trial_started';
+  if (t === 'INITIAL_PURCHASE' || t === 'TRIAL_CONVERTED') return 'first_payment_succeeded';
+  if (t === 'RENEWAL') return 'renewal_succeeded';
+  return t.toLowerCase();
+}
+async function recordBillingEvent(
+  db: SupabaseClient,
+  event: Record<string, any>,
+  outcome: { applied: boolean; reason?: string; plan?: string | null },
+): Promise<void> {
+  try {
+    const env = String(event.environment || '').toLowerCase() === 'sandbox' ? 'sandbox' : 'production';
+    const providerEventId = event.id ? String(event.id) : null;
+    if (!providerEventId) return; // nothing to dedupe on — skip rather than invent an id
+    const appUserId = String(event.app_user_id || '');
+    const { error } = await db.rpc('record_billing_event', {
+      p_provider: 'revenuecat',
+      p_environment: env,
+      p_provider_event_id: providerEventId,
+      p_event_type: ledgerEventType(event.type, event.period_type),
+      p_user_id: UUID_RE.test(appUserId) ? appUserId : null,
+      p_occurred_at: Number.isFinite(Number(event.event_timestamp_ms))
+        ? new Date(Number(event.event_timestamp_ms)).toISOString() : new Date().toISOString(),
+      p_properties: {
+        rc_event_type: event.type ?? null,
+        store: event.store ?? null,
+        app_id: event.app_id ?? null,
+        product_id: event.product_id ?? null,
+        plan: outcome.plan ?? null,
+        period_type: event.period_type ?? null,
+        price: event.price ?? null,
+        currency: event.currency ?? null,
+        expiration_at_ms: event.expiration_at_ms ?? null,
+        applied: outcome.applied,
+        reason: outcome.reason ?? null,
+      },
+    });
+    if (error) console.warn('[revenueCatWebhook] billing ledger write failed:', error.message);
+  } catch (e) {
+    console.warn('[revenueCatWebhook] billing ledger write threw:', (e as Error)?.message);
+  }
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -480,12 +537,14 @@ Deno.serve(async (req: Request) => {
         eventType === 'INITIAL_PURCHASE' || eventType === 'TRIAL_STARTED';
       if (!isCreationEvent) {
         console.warn(`[revenueCatWebhook] No profile for ${userEmail}, ${eventType} skipped`);
+        await recordBillingEvent(db, event, { applied: false, reason: 'no_profile' });
         return json({ success: true, message: 'No profile found, skipped' });
       }
       if (!NATIVE_STORE_APP_IDS.has(event.app_id)) {
         console.warn(
           `[revenueCatWebhook] No profile for ${userEmail}, app=${event.app_id} (not a native store) — skipped to avoid duplicating Stripe-side creation`,
         );
+        await recordBillingEvent(db, event, { applied: false, reason: 'non_native_creation_skipped' });
         return json({ success: true, message: 'Non-native-store creation event skipped' });
       }
       if (!userEmail) {
@@ -531,6 +590,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: 'Profile create failed', detail: insErr.message }, 500);
       }
       console.log(`[revenueCatWebhook] Created profile ${created.id} for native-store subscriber ${userEmail} (app=${event.app_id})`);
+      await recordBillingEvent(db, event, { applied: true, reason: 'profile_created', plan });
 
       // Affiliate commission for the new-profile path. Skip trials — paid
       // commission only on TRIAL_CONVERTED (a separate later event).
@@ -640,6 +700,7 @@ Deno.serve(async (req: Request) => {
               `now=${new Date(nowMs).toISOString()}. ` +
               `Subscription appears still active — likely a phantom event from RC upstream misconfiguration.`,
           );
+          await recordBillingEvent(db, event, { applied: false, reason: 'phantom_guard' });
           return json({
             success: true,
             message: `Ignored suspicious ${eventType}`,
@@ -750,6 +811,11 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log(`[revenueCatWebhook] Updated ${userEmail}:`, JSON.stringify(updates));
+    await recordBillingEvent(db, event, {
+      applied: true,
+      reason: 'profile_updated',
+      plan: typeof updates.subscription_plan === 'string' ? updates.subscription_plan : null,
+    });
 
     // Affiliate commission step. mapEventTypeForCommission() filters out
     // events that shouldn't pay (TRIAL_STARTED, CANCELLATION, EXPIRATION, etc.)
