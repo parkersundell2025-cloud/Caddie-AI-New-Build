@@ -87,6 +87,13 @@ function mapStatus(stripeStatus: Stripe.Subscription.Status, plan: 'basic' | 'pr
 // trial_started / first_payment_succeeded fact can be recorded. One row per
 // Stripe delivery keyed on event.id; Stripe retries dedupe in the RPC.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Subscription-STATE facts only (review finding 2, 2026-09-16). A status
+// transition is never evidence that money moved: an ordinary renewal leaves
+// the subscription active → active, a 100%-coupon subscription is created
+// `active` with a $0 invoice, and past_due → active also happens when the
+// latest invoice is marked uncollectible. Payment facts come solely from
+// invoice.paid (ledgerEventTypeForInvoice below).
 export function ledgerEventTypeForStripe(
   eventType: string,
   status: string | null | undefined,
@@ -95,16 +102,43 @@ export function ledgerEventTypeForStripe(
 ): string {
   if (eventType === 'customer.subscription.deleted') return 'expiration';
   if (eventType === 'customer.subscription.created') {
-    return status === 'trialing' ? 'trial_started' : status === 'active' ? 'first_payment_succeeded' : 'subscription_created';
+    return status === 'trialing' ? 'trial_started' : 'subscription_created';
   }
   if (eventType === 'customer.subscription.updated') {
-    if (previousStatus === 'trialing' && status === 'active') return 'first_payment_succeeded';
+    if (previousStatus === 'trialing' && status === 'active') return 'trial_ended';
     if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') return 'expiration';
     if (cancelAtPeriodEnd) return 'cancellation';
-    if (previousStatus === 'past_due' && status === 'active') return 'renewal_succeeded';
+    if (previousStatus === 'past_due' && status === 'active') return 'subscription_reactivated';
     return 'subscription_updated';
   }
   return String(eventType || '').replace(/\W+/g, '_');
+}
+
+// Payment facts, from payment evidence: a paid invoice with amount_paid > 0.
+// First vs. subsequent payment is decided from the subscription's own paid
+// history (count of EARLIER invoices with money collected), not from status.
+// $0 invoices (trial period, 100% coupon, credit balance) are recorded as
+// a distinct non-revenue fact so they never inflate conversion.
+export function ledgerEventTypeForInvoice(amountPaid: number | null | undefined, priorPaidInvoices: number): string {
+  if (!(Number(amountPaid) > 0)) return 'invoice_paid_no_charge';
+  return priorPaidInvoices > 0 ? 'renewal_succeeded' : 'first_payment_succeeded';
+}
+
+// Stripe API 2025-10-29 moved invoice.subscription under parent.subscription_details;
+// older payloads carry it at the top level. Accept both.
+function invoiceSubscriptionId(inv: Record<string, any>): string | null {
+  const top = inv.subscription;
+  if (typeof top === 'string') return top;
+  if (top && typeof top === 'object' && typeof top.id === 'string') return top.id;
+  const parent = inv.parent?.subscription_details?.subscription;
+  if (typeof parent === 'string') return parent;
+  if (parent && typeof parent === 'object' && typeof parent.id === 'string') return parent.id;
+  return null;
+}
+function invoiceUserId(inv: Record<string, any>): string | null {
+  const meta = inv.parent?.subscription_details?.metadata ?? inv.subscription_details?.metadata ?? inv.lines?.data?.[0]?.metadata ?? {};
+  const id = String(meta.supabase_user_id || meta.rc_app_user_id || '');
+  return UUID_RE.test(id) ? id : null;
 }
 async function recordBillingEvent(
   db: ReturnType<typeof serviceClient>,
@@ -189,10 +223,86 @@ Deno.serve(async (req) => {
       'customer.subscription.created',
       'customer.subscription.updated',
       'customer.subscription.deleted',
+      'invoice.paid',
     ]);
     if (!HANDLED_EVENTS.has(event.type)) {
       // Other event types ack but no-op. Stripe won't retry on 2xx.
       return json({ success: true, message: `Event ${event.type} acknowledged (no-op)` });
+    }
+
+    // ── invoice.paid → payment fact in the ledger (no profile change) ──
+    // The endpoint must be subscribed to invoice.paid in the Stripe dashboard
+    // for this branch to run. Idempotent on event.id; the same economic
+    // payment is never written from anywhere else (completeStripeCheckout
+    // records only subscription state).
+    if (event.type === 'invoice.paid') {
+      const inv = event.data.object as unknown as Record<string, any>;
+      const subscriptionId = invoiceSubscriptionId(inv);
+      const amountPaid = Number(inv.amount_paid ?? 0);
+      let priorPaid = 0;
+      // Payment identity. The endpoint delivers the 2025-10-29 invoice shape,
+      // where payment_intent / charge are no longer top-level (they live in
+      // the `payments` list, not included by default). Our SDK client pins
+      // apiVersion 2024-04-10, so re-reading the invoice through it returns
+      // the classic shape with both ids at the top level. Verified against a
+      // real replayed renewal on 2026-09-16 (ids were null before this).
+      let paymentIntentId: string | null = null;
+      let chargeId: string | null = null;
+      let taxAmount: number | null = null;
+      if (subscriptionId && amountPaid > 0) {
+        try {
+          const full = await stripe().invoices.retrieve(inv.id) as unknown as Record<string, any>;
+          paymentIntentId = typeof full.payment_intent === 'string' ? full.payment_intent : full.payment_intent?.id ?? null;
+          chargeId = typeof full.charge === 'string' ? full.charge : full.charge?.id ?? null;
+          taxAmount = typeof full.tax === 'number' ? full.tax : null;
+        } catch (e) {
+          console.warn(`[stripeWebhook] invoices.retrieve(${inv.id}) failed; payment ids unavailable:`, (e as Error).message);
+        }
+        try {
+          const prior = await stripe().invoices.list({ subscription: subscriptionId, status: 'paid', limit: 100 });
+          priorPaid = prior.data.filter((p) => p.id !== inv.id && Number(p.amount_paid) > 0 && p.created < inv.created).length;
+        } catch (e) {
+          console.warn(`[stripeWebhook] invoices.list(${subscriptionId}) failed; classifying by billing_reason:`, (e as Error).message);
+          priorPaid = inv.billing_reason === 'subscription_create' ? 0 : 1;
+        }
+      }
+      const db = serviceClient();
+      try {
+        const { error } = await db.rpc('record_billing_event', {
+          p_provider: 'stripe',
+          p_environment: event.livemode ? 'production' : 'sandbox',
+          p_provider_event_id: event.id,
+          p_event_type: ledgerEventTypeForInvoice(amountPaid, priorPaid),
+          p_user_id: invoiceUserId(inv),
+          p_occurred_at: new Date(event.created * 1000).toISOString(),
+          p_properties: {
+            stripe_event_type: event.type,
+            invoice_id: inv.id ?? null,
+            stripe_subscription_id: subscriptionId,
+            customer: typeof inv.customer === 'string' ? inv.customer : inv.customer?.id ?? null,
+            payment_intent: paymentIntentId ?? (typeof inv.payment_intent === 'string' ? inv.payment_intent : inv.payment_intent?.id ?? null),
+            charge: chargeId ?? (typeof inv.charge === 'string' ? inv.charge : inv.charge?.id ?? null),
+            billing_reason: inv.billing_reason ?? null,
+            amount_paid: amountPaid,
+            amount_due: inv.amount_due ?? null,
+            subtotal: inv.subtotal ?? null,
+            tax: taxAmount ?? (typeof inv.tax === 'number' ? inv.tax : null),
+            total: inv.total ?? null,
+            discount_amount: Array.isArray(inv.total_discount_amounts)
+              ? inv.total_discount_amounts.reduce((s: number, d: { amount?: number }) => s + Number(d.amount ?? 0), 0) : 0,
+            currency: inv.currency ?? null,
+            period_start: inv.period_start ? new Date(inv.period_start * 1000).toISOString() : null,
+            period_end: inv.period_end ? new Date(inv.period_end * 1000).toISOString() : null,
+            prior_paid_invoices: priorPaid,
+            applied: false, // no profile change from an invoice; state comes from subscription events
+            reason: 'payment_evidence',
+          },
+        });
+        if (error) console.warn('[stripeWebhook] billing ledger write failed:', error.message);
+      } catch (e) {
+        console.warn('[stripeWebhook] billing ledger write threw:', (e as Error)?.message);
+      }
+      return json({ success: true, event: event.type, ledger: ledgerEventTypeForInvoice(amountPaid, priorPaid) });
     }
 
     const sub = event.data.object as Stripe.Subscription;

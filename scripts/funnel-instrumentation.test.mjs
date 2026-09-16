@@ -31,7 +31,7 @@ assert.ok(fn.includes("json({ error: 'event_not_allowed' }, 400)"), 'unknown/ser
 // --- Emitter behaviour --------------------------------------------------------
 assert.ok(emitter.includes('if (error) throw error;'), 'emitter checks the invoke error envelope (no-throw footgun)');
 assert.ok(emitter.includes('status >= 400 && status < 500'), 'a 4xx is dropped immediately, not retried');
-assert.ok(emitter.includes('queue.length = 0'), 'an account switch drops undelivered events');
+assert.ok(emitter.includes('if (queue[i].user !== currentUser) queue.splice(i, 1);'), 'an account switch drops undelivered events not owned by the new user (behavior: scripts/funnel-queue.test.mjs)');
 assert.ok(emitter.includes('const MAX_QUEUE = 50;'), 'queue is bounded');
 assert.ok(emitter.includes('event_id: newId()'), 'event_id is assigned once at creation (idempotent retry)');
 // Walkthrough 2026-09-16: an offline purchase attempt was dropped after ~3s of
@@ -39,7 +39,8 @@ assert.ok(emitter.includes('event_id: newId()'), 'event_id is assigned once at c
 assert.ok(emitter.includes('if (!status) return; // transport failure'), 'no HTTP status (offline) keeps the queue instead of counting toward a drop');
 assert.ok(emitter.includes("window.addEventListener('online'"), 'delivery resumes when the browser comes back online');
 assert.ok(emitter.includes("localStorage.setItem(STORAGE_KEY"), 'queue is persisted across navigation/reload');
-assert.ok(emitter.includes('saved.user === currentUser'), 'a persisted queue is only restored for the same user (no cross-account attribution)');
+assert.ok(emitter.includes('it?.user === owner'), 'a persisted item is only restored for its own user (no cross-account attribution)');
+assert.ok(emitter.includes('if (!currentUser || item.user !== currentUser) { remove(item); continue; }'), 'ownership is re-checked immediately before delivery');
 assert.ok(emitter.includes('supabase.auth.onAuthStateChange'), 'account-switch guard is wired to auth state');
 
 // --- Migration: isolation + hardening --------------------------------------
