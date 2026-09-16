@@ -159,21 +159,21 @@ Deno.serve(async (req: Request) => {
 
     const db = serviceClient();
 
-    // #8 billing truth ledger. For web trials this is the ONLY server-side
-    // moment that sees the new subscription: the Stripe webhook endpoint is
-    // not subscribed to customer.subscription.created and RC's Stripe
-    // integration never learns about these customers (syncSubscription →
-    // no_rc_customer). Keyed on the Checkout Session id so the success page
-    // re-calling this function is a no-op in the ledger; the subscription id
-    // is in properties for joining against later webhook rows (trial →
-    // paid conversion arrives via stripeWebhook customer.subscription.updated).
+    // #8 billing truth ledger. Records the subscription STATE the app
+    // activated from (trial_started / subscription_activated) — never a
+    // payment: money facts come only from stripeWebhook's invoice.paid
+    // handling, so the same economic payment can't be written twice (review
+    // finding 2). amount_total / payment_status are kept as evidence, not as
+    // the classification. Keyed on the Checkout Session id so the success
+    // page re-calling this function is a no-op in the ledger; the
+    // subscription id is in properties for joining against webhook rows.
     const recordLedger = async (reason: string) => {
       try {
         const { error } = await db.rpc('record_billing_event', {
           p_provider: 'stripe',
           p_environment: session.livemode ? 'production' : 'sandbox',
           p_provider_event_id: session.id,
-          p_event_type: isInTrial ? 'trial_started' : 'first_payment_succeeded',
+          p_event_type: isInTrial ? 'trial_started' : 'subscription_activated',
           p_user_id: user.id,
           p_occurred_at: new Date(session.created * 1000).toISOString(),
           p_properties: {
@@ -185,6 +185,7 @@ Deno.serve(async (req: Request) => {
             unit_amount: subObj?.items?.data?.[0]?.price?.unit_amount ?? null,
             currency: session.currency ?? null,
             amount_total: session.amount_total ?? null,
+            payment_status: session.payment_status ?? null,
             trial_end: trialEndISO,
             applied: true,
             reason,

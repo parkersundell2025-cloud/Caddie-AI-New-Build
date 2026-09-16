@@ -297,20 +297,32 @@ async function writeAffiliateCommission(
 // ── Billing truth ledger (CONVERSION_FIXES #8) ──────────────────────────────
 // One row per RC delivery in analytics.billing_events, keyed on
 // (provider, environment, event.id) so RC retries can never double-count a
-// trial or a payment. `event_type` is normalized to the funnel's vocabulary:
-// trial_started / first_payment_succeeded / renewal_succeeded, else the RC type
-// lowercased. `applied` tells the analyst whether the profile was actually
-// changed (phantom-guard rejections and unresolvable identities are recorded
-// with applied=false so "webhook arrived but no access" is measurable).
-// No email or receipt data goes in; user_id is the Supabase UUID only when RC
-// sent one as app_user_id. Never throws — the ack to RC must not depend on it.
+// trial or a payment. `event_type` is normalized to the funnel's vocabulary
+// from RC's DOCUMENTED shape (review finding 1, 2026-09-16): a trial that
+// converts to paid arrives as RENEWAL with is_trial_conversion=true — there
+// is no TRIAL_CONVERTED event — and a period can be zero-priced (promo,
+// intro offer), so "payment" also requires price > 0:
+//   trial_started              INITIAL_PURCHASE with period_type TRIAL
+//   first_payment_succeeded    paid INITIAL_PURCHASE, or RENEWAL + is_trial_conversion (price > 0)
+//   trial_converted_no_charge  RENEWAL + is_trial_conversion at price 0
+//   renewal_succeeded          later RENEWAL with price > 0 (renewal_no_charge otherwise)
+//   <rc type lowercased>       everything else (cancellation, expiration, ...)
+// `applied` tells the analyst whether the profile was actually changed
+// (phantom-guard rejections and unresolvable identities are recorded with
+// applied=false so "webhook arrived but no access" is measurable). No email
+// or receipt data goes in; user_id is the Supabase UUID only when RC sent one
+// as app_user_id. Never throws — the ack to RC must not depend on it.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function ledgerEventType(eventType: string, periodType: unknown): string {
-  const t = String(eventType || '').toUpperCase();
-  const trial = String(periodType || '').toUpperCase() === 'TRIAL';
+export function ledgerEventType(event: Record<string, unknown>): string {
+  const t = String(event.type || '').toUpperCase();
+  const trial = String(event.period_type || '').toUpperCase() === 'TRIAL';
+  const priceRaw = event.price ?? event.price_in_purchased_currency;
+  const paid = Number.isFinite(Number(priceRaw)) && Number(priceRaw) > 0;
+  const conversion = event.is_trial_conversion === true;
   if (t === 'TRIAL_STARTED' || (t === 'INITIAL_PURCHASE' && trial)) return 'trial_started';
-  if (t === 'INITIAL_PURCHASE' || t === 'TRIAL_CONVERTED') return 'first_payment_succeeded';
-  if (t === 'RENEWAL') return 'renewal_succeeded';
+  if (t === 'RENEWAL' && conversion) return paid ? 'first_payment_succeeded' : 'trial_converted_no_charge';
+  if (t === 'INITIAL_PURCHASE') return paid ? 'first_payment_succeeded' : 'initial_purchase_no_charge';
+  if (t === 'RENEWAL') return paid ? 'renewal_succeeded' : 'renewal_no_charge';
   return t.toLowerCase();
 }
 async function recordBillingEvent(
@@ -327,7 +339,7 @@ async function recordBillingEvent(
       p_provider: 'revenuecat',
       p_environment: env,
       p_provider_event_id: providerEventId,
-      p_event_type: ledgerEventType(event.type, event.period_type),
+      p_event_type: ledgerEventType(event),
       p_user_id: UUID_RE.test(appUserId) ? appUserId : null,
       p_occurred_at: Number.isFinite(Number(event.event_timestamp_ms))
         ? new Date(Number(event.event_timestamp_ms)).toISOString() : new Date().toISOString(),
@@ -338,8 +350,13 @@ async function recordBillingEvent(
         product_id: event.product_id ?? null,
         plan: outcome.plan ?? null,
         period_type: event.period_type ?? null,
+        is_trial_conversion: event.is_trial_conversion === true,
         price: event.price ?? null,
+        price_in_purchased_currency: event.price_in_purchased_currency ?? null,
         currency: event.currency ?? null,
+        transaction_id: event.transaction_id ?? null,
+        original_transaction_id: event.original_transaction_id ?? null,
+        purchased_at_ms: event.purchased_at_ms ?? null,
         expiration_at_ms: event.expiration_at_ms ?? null,
         applied: outcome.applied,
         reason: outcome.reason ?? null,

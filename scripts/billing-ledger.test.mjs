@@ -18,17 +18,24 @@ const mig = read(`../supabase/migrations/${migName}`);
 // --- Mapping (real function) ------------------------------------------------
 const m = hook.match(/export function ledgerEventType[\s\S]*?\n\}/);
 assert(m, 'ledgerEventType not found');
-const ledgerEventType = eval('(' + m[0].replace('export ', '').replace(/: string|: unknown/g, '') + ')');
+const ledgerEventType = eval('(' + m[0].replace('export ', '').replace(/: Record<string, unknown>|: string/g, '') + ')');
 
-assert.equal(ledgerEventType('TRIAL_STARTED', null), 'trial_started');
-assert.equal(ledgerEventType('INITIAL_PURCHASE', 'TRIAL'), 'trial_started', 'Stripe-imported trials arrive as INITIAL_PURCHASE/TRIAL');
-assert.equal(ledgerEventType('INITIAL_PURCHASE', 'NORMAL'), 'first_payment_succeeded');
-assert.equal(ledgerEventType('INITIAL_PURCHASE', undefined), 'first_payment_succeeded');
-assert.equal(ledgerEventType('TRIAL_CONVERTED', 'NORMAL'), 'first_payment_succeeded');
-assert.equal(ledgerEventType('RENEWAL', 'NORMAL'), 'renewal_succeeded');
-assert.equal(ledgerEventType('CANCELLATION', null), 'cancellation');
-assert.equal(ledgerEventType('EXPIRATION', null), 'expiration');
-assert.equal(ledgerEventType('initial_purchase', 'trial'), 'trial_started', 'case-insensitive');
+// Payloads follow RC's documented event fields (event-types-and-fields): a
+// trial conversion is RENEWAL + is_trial_conversion:true, never a
+// "TRIAL_CONVERTED" type (review finding 1).
+assert.equal(ledgerEventType({ type: 'INITIAL_PURCHASE', period_type: 'TRIAL', price: 0, is_trial_conversion: false }), 'trial_started');
+assert.equal(ledgerEventType({ type: 'RENEWAL', period_type: 'NORMAL', is_trial_conversion: true, price: 19.99 }), 'first_payment_succeeded', 'FIX 1: documented trial conversion is the first payment');
+assert.equal(ledgerEventType({ type: 'RENEWAL', period_type: 'NORMAL', is_trial_conversion: true, price: 0 }), 'trial_converted_no_charge', 'zero-price conversion is not revenue');
+assert.equal(ledgerEventType({ type: 'RENEWAL', period_type: 'NORMAL', is_trial_conversion: false, price: 19.99 }), 'renewal_succeeded', 'later renewals stay distinct');
+assert.equal(ledgerEventType({ type: 'RENEWAL', period_type: 'NORMAL', is_trial_conversion: false, price: 0 }), 'renewal_no_charge');
+assert.equal(ledgerEventType({ type: 'INITIAL_PURCHASE', period_type: 'NORMAL', price: 29 }), 'first_payment_succeeded', 'paid purchase with no trial');
+assert.equal(ledgerEventType({ type: 'INITIAL_PURCHASE', period_type: 'NORMAL', price: 0 }), 'initial_purchase_no_charge', 'promo / zero-price purchase is not revenue');
+assert.equal(ledgerEventType({ type: 'INITIAL_PURCHASE', period_type: 'NORMAL', price: null, price_in_purchased_currency: 39 }), 'first_payment_succeeded', 'falls back to purchased-currency price');
+assert.equal(ledgerEventType({ type: 'TRIAL_CONVERTED' }), 'trial_converted', 'the invented type is no longer special-cased');
+assert.equal(ledgerEventType({ type: 'CANCELLATION' }), 'cancellation');
+assert.equal(ledgerEventType({ type: 'EXPIRATION' }), 'expiration');
+assert.equal(ledgerEventType({ type: 'initial_purchase', period_type: 'trial' }), 'trial_started', 'case-insensitive');
+assert.ok(hook.includes('is_trial_conversion: event.is_trial_conversion === true') && hook.includes('transaction_id: event.transaction_id'), 'conversion flag and transaction identity preserved in the ledger row');
 
 // --- Write sites: every terminal outcome after identity resolution is recorded
 const sites = [...hook.matchAll(/recordBillingEvent\(db, event, \{ ?applied: (true|false), reason: '([a-z_]+)'/g)].map((x) => [x[1], x[2]]);
@@ -56,14 +63,44 @@ const sm = stripeHook.match(/export function ledgerEventTypeForStripe[\s\S]*?\n\
 assert(sm, 'ledgerEventTypeForStripe not found');
 const stripeType = eval('(' + sm[0].replace('export ', '')
   .replace(/\(\s*eventType: string,\s*status: string \| null \| undefined,\s*previousStatus: string \| null \| undefined,\s*cancelAtPeriodEnd: boolean \| null \| undefined,\s*\): string/, '(eventType, status, previousStatus, cancelAtPeriodEnd)') + ')');
+// Subscription events are STATE facts only (review finding 2): no status
+// transition is ever labeled a payment.
 assert.equal(stripeType('customer.subscription.created', 'trialing', undefined, false), 'trial_started');
-assert.equal(stripeType('customer.subscription.created', 'active', undefined, false), 'first_payment_succeeded');
-assert.equal(stripeType('customer.subscription.updated', 'active', 'trialing', false), 'first_payment_succeeded', 'trial → active is the first payment');
+assert.equal(stripeType('customer.subscription.created', 'active', undefined, false), 'subscription_created', 'FIX 2: created-active ($0 coupon possible) is not a payment');
+assert.equal(stripeType('customer.subscription.updated', 'active', 'trialing', false), 'trial_ended', 'FIX 2: trial → active is a state change; the payment comes from invoice.paid');
 assert.equal(stripeType('customer.subscription.updated', 'active', undefined, true), 'cancellation');
 assert.equal(stripeType('customer.subscription.updated', 'canceled', 'active', false), 'expiration');
-assert.equal(stripeType('customer.subscription.updated', 'active', 'past_due', false), 'renewal_succeeded');
+assert.equal(stripeType('customer.subscription.updated', 'active', 'past_due', false), 'subscription_reactivated', 'FIX 2: past_due → active can be an uncollectible write-off, not a payment');
 assert.equal(stripeType('customer.subscription.updated', 'active', 'active', false), 'subscription_updated');
 assert.equal(stripeType('customer.subscription.deleted', 'canceled', undefined, false), 'expiration');
+for (const t of ['created', 'updated', 'deleted']) {
+  for (const s of ['trialing', 'active', 'past_due', 'canceled']) {
+    for (const p of [undefined, 'trialing', 'active', 'past_due']) {
+      const r = stripeType(`customer.subscription.${t}`, s, p, false);
+      assert.ok(!/payment|renewal_succeeded/.test(r), `no subscription transition claims a payment (${t} ${p}→${s} gave ${r})`);
+    }
+  }
+}
+
+// Payment facts come from invoice.paid with real amounts and history.
+const im = stripeHook.match(/export function ledgerEventTypeForInvoice[\s\S]*?\n\}/);
+assert(im, 'ledgerEventTypeForInvoice not found');
+const invoiceType = eval('(' + im[0].replace('export ', '').replace(/\(amountPaid: number \| null \| undefined, priorPaidInvoices: number\): string/, '(amountPaid, priorPaidInvoices)') + ')');
+assert.equal(invoiceType(1500, 0), 'first_payment_succeeded', 'first invoice with money collected');
+assert.equal(invoiceType(1500, 1), 'renewal_succeeded', 'FIX 2: ordinary renewal is recorded as a payment');
+assert.equal(invoiceType(1500, 7), 'renewal_succeeded');
+assert.equal(invoiceType(0, 0), 'invoice_paid_no_charge', 'FIX 2: $0 invoice (trial / 100% coupon) is not revenue');
+assert.equal(invoiceType(0, 3), 'invoice_paid_no_charge');
+assert.equal(invoiceType(null, 0), 'invoice_paid_no_charge');
+assert.ok(stripeHook.includes("'invoice.paid',") && stripeHook.includes("if (event.type === 'invoice.paid')"), 'invoice.paid is handled, not acknowledged as a no-op');
+assert.ok(/invoices\.list\(\{ subscription: subscriptionId, status: 'paid'/.test(stripeHook), 'first vs subsequent decided from the subscription\'s paid-invoice history');
+assert.ok(/p\.id !== inv\.id && Number\(p\.amount_paid\) > 0 && p\.created < inv\.created/.test(stripeHook), 'only EARLIER invoices with money collected count as prior payments');
+for (const k of ['invoice_id:', 'payment_intent:', 'charge:', 'amount_paid:', 'billing_reason:', 'discount_amount:']) {
+  assert.ok(stripeHook.includes(k), `invoice ledger row keeps ${k.replace(':', '')}`);
+}
+assert.ok(stripeHook.includes("reason: 'payment_evidence'"), 'invoice rows are marked as payment evidence');
+assert.ok(stripeHook.includes('stripe().invoices.retrieve(inv.id)'), 'payment_intent / charge are read back through the pinned SDK version (2025-10-29 payloads omit them)');
+assert.ok(stripeHook.includes('tax: taxAmount'), 'tax kept separately so revenue can exclude it');
 const stripeSites = [...stripeHook.matchAll(/recordBillingEvent\(db, event, sub, \{ ?applied: (true|false), reason: '([a-z_]+)'/g)].map((x) => [x[1], x[2]]);
 assert.deepEqual(stripeSites.sort(), [['false', 'no_profile'], ['false', 'plan_not_derivable']].sort(), 'stripe skip sites recorded');
 assert.ok(/applied: updated > 0,\s*reason: updated > 0 \? 'profile_updated' : 'profile_update_failed'/.test(stripeHook), 'stripe update outcome recorded after the write loop');
@@ -76,7 +113,9 @@ assert.ok(/billing ledger write (failed|threw)/.test(stripeHook), 'stripe ledger
 // learns about these customers) ---------------------------------------------
 const complete = read('../supabase/functions/completeStripeCheckout/index.ts');
 assert.ok(complete.includes("p_provider: 'stripe'") && complete.includes('p_provider_event_id: session.id'), 'web activation keyed on the Checkout Session id (re-calls dedupe)');
-assert.ok(complete.includes("p_event_type: isInTrial ? 'trial_started' : 'first_payment_succeeded'"), 'trial vs paid derived from the expanded subscription');
+assert.ok(complete.includes("p_event_type: isInTrial ? 'trial_started' : 'subscription_activated'"), 'FIX 2: checkout completion records subscription state, never a payment (dedupes with invoice.paid by construction)');
+assert.ok(!complete.includes("'first_payment_succeeded'") && !complete.includes("'renewal_succeeded'"), 'checkout completion never claims a payment');
+assert.ok(complete.includes('payment_status: session.payment_status') && complete.includes('amount_total: session.amount_total'), 'payment evidence kept on the state row');
 assert.ok(complete.includes('p_user_id: user.id'), 'user_id from the verified JWT');
 assert.ok(complete.includes("await recordLedger('profile_updated')") && complete.includes("await recordLedger('profile_created')"), 'recorded after BOTH profile write paths, after the write');
 assert.ok(complete.indexOf("recordLedger('profile_updated')") > complete.indexOf('Updated user_profile for'), 'ledger write after the successful update');
