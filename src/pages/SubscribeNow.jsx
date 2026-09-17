@@ -297,30 +297,41 @@ export default function SubscribeNow() {
     (async () => {
       setOfferState((s) => ({ ...s, status: 'loading', error: null }));
       const t0 = Date.now();
-      const res = await loadOfferings();
-      if (stale()) return;
-      if (res.status !== 'ready') {
-        // #8: which of the distinct failure reasons occurred (never the raw message).
-        track('offerings_failed', { properties: { status: res.status, code: res.status, latency_ms: Date.now() - t0 } });
-        setOfferState({ status: res.status, byPlan: {}, offering: null, error: res.error });
-        return;
-      }
-      const pkgs = res.offering.availablePackages || [];
-      track('offerings_loaded', {
-        offeringId: res.offering.identifier ?? null,
-        properties: { latency_ms: Date.now() - t0, offering_id: res.offering.identifier ?? null, package_count: pkgs.length },
-      });
-      const ids = pkgs.map((p) => p?.product?.identifier).filter(Boolean);
-      const eligibility = await getIntroEligibility(ids);
-      if (stale()) return;
-      const byPlan = {};
-      for (const pkg of pkgs) {
-        const plan = planForPackage(pkg);
-        if (plan === 'basic' || plan === 'pro') {
-          byPlan[plan] = describeOffer(pkg, eligibility[pkg.product.identifier]);
+      // The CTA stays disabled until this settles, so nothing in here may be
+      // allowed to throw and leave status='loading' forever (an unexpected
+      // package shape from the store would otherwise lock the buy button).
+      // Any exception becomes the retryable 'error' state.
+      try {
+        const res = await loadOfferings();
+        if (stale()) return;
+        if (res.status !== 'ready') {
+          // #8: which of the distinct failure reasons occurred (never the raw message).
+          track('offerings_failed', { properties: { status: res.status, code: res.status, latency_ms: Date.now() - t0 } });
+          setOfferState({ status: res.status, byPlan: {}, offering: null, error: res.error });
+          return;
         }
+        const pkgs = res.offering.availablePackages || [];
+        track('offerings_loaded', {
+          offeringId: res.offering.identifier ?? null,
+          properties: { latency_ms: Date.now() - t0, offering_id: res.offering.identifier ?? null, package_count: pkgs.length },
+        });
+        const ids = pkgs.map((p) => p?.product?.identifier).filter(Boolean);
+        const eligibility = await getIntroEligibility(ids);
+        if (stale()) return;
+        const byPlan = {};
+        for (const pkg of pkgs) {
+          const plan = planForPackage(pkg);
+          if (plan === 'basic' || plan === 'pro') {
+            byPlan[plan] = describeOffer(pkg, eligibility[pkg.product.identifier]);
+          }
+        }
+        setOfferState({ status: 'ready', byPlan, offering: res.offering, error: null });
+      } catch (e) {
+        if (stale()) return;
+        console.warn('[SubscribeNow] offer load threw:', e?.message);
+        track('offerings_failed', { properties: { status: 'error', code: 'exception', latency_ms: Date.now() - t0 } });
+        setOfferState({ status: 'error', byPlan: {}, offering: null, error: e });
       }
-      setOfferState({ status: 'ready', byPlan, offering: res.offering, error: null });
     })();
     return () => { cancelled = true; };
   }, [loading, offerNonce]);
@@ -645,7 +656,16 @@ export default function SubscribeNow() {
       // (paying user provisioned nothing, 2026-08-04). Require an authenticated
       // user AND a successful alignment for THIS uuid; otherwise stop and let
       // them retry. Never call the store on an unverified identity.
-      const u = await getCurrentUser();
+      // getUser() is a network round-trip and can fail transiently on a
+      // phone (device pass 2026-09-16: two `no_user` preflight failures on a
+      // signed-in user, seconds before the same tap succeeded). The gate
+      // needs the authenticated uuid, which the locally stored session also
+      // carries — only give up when neither source has one.
+      let u = await getCurrentUser();
+      if (!u?.id) {
+        const { data: { session } = {} } = await supabase.auth.getSession().catch(() => ({ data: {} }));
+        if (session?.user?.id) u = session.user;
+      }
       if (!u?.id) {
         ev('purchase_preflight_failed', { reason: 'no_user' });
         setCheckoutError('Please sign in again to finish your purchase.');
