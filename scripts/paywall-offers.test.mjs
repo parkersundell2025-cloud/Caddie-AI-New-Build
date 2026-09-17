@@ -45,5 +45,10 @@ has('disabled={checkoutLoading !== null || !offersReady}', 'CTA disabled on nati
 has("? `Start ${selectedTrial.label} — ${planName} →`", 'CTA promises a trial only from selectedTrial');
 has("`Subscribe — ${planName} →`", 'CTA falls back to a plain Subscribe when no trial is offered');
 lacks('Start 7-Day Free Trial —', 'no hardcoded unconditional trial CTA remains');
+// The CTA is disabled until the offer load settles, so a thrown exception in
+// that load must become the retryable 'error' state, never a permanent
+// 'loading' (2026-09-16 hardening after the device pass).
+has("setOfferState({ status: 'error', byPlan: {}, offering: null, error: e });", 'offer-load exception → retryable error state, not a stuck disabled CTA');
+has("code: 'exception'", 'offer-load exception is recorded as offerings_failed/exception');
 
 console.log('PASS: #5 paywall wiring — up-front offering load, real prices, gated trial wording, distinct states, manual retry, gated CTA.');

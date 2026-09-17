@@ -136,6 +136,9 @@ function purchaseCtx(options = {}) {
     track: (name, opts) => result.events.push([name, opts?.properties?.outcome ?? opts?.properties?.reason ?? null]),
     newAttemptId: () => 'attempt-1',
     getCurrentUser: async () => (options.noUser ? null : { id: 'u1', email: 'd@example.invalid' }),
+    // Device finding 2026-09-16: getUser() (network) can transiently return
+    // null for a signed-in user; the locally stored session is the fallback.
+    supabase: { auth: { getSession: async () => ({ data: { session: options.localSession ? { user: { id: 'u1' } } : null } }) } },
     setCheckoutLoading: (v) => { result.checkoutLoading = v; },
     setCheckoutError: (v) => { result.checkoutError = v; },
     navigate: (r) => result.navigations.push(r),
@@ -176,6 +179,13 @@ const noUserBuy = await runPurchase({ noUser: true });
 assert.equal(noUserBuy.purchases, 0, 'FIX #3: no authenticated user → no purchase');
 assert.ok(noUserBuy.checkoutError, 'FIX #3: unauthenticated shows an error');
 assert.deepEqual(noUserBuy.events.at(-1), ['purchase_preflight_failed', 'no_user'], 'FIX #8: no_user preflight reason');
+
+// Transient getUser() failure with a stored session must NOT block a
+// signed-in user (and must still run the identity alignment for that uuid).
+const blipBuy = await runPurchase({ noUser: true, localSession: true });
+assert.equal(blipBuy.purchases, 1, 'device fix: stored session stands in for a transient getUser() null');
+assert.deepEqual(blipBuy.navigations, ['/checkout/success'], 'device fix: purchase completes normally');
+assert.ok(!blipBuy.events.some((e) => e[0] === 'purchase_preflight_failed'), 'device fix: not recorded as a preflight failure');
 
 const noPkg = await runPurchase({ noPackage: true });
 assert.equal(noPkg.purchases, 0, 'no package → no purchase');
