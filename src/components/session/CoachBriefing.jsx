@@ -13,18 +13,7 @@ const DEFAULT_BRIEFINGS = {
   default: "Great players are made in practice. Let's get to work — every rep today is a stroke saved on the course.",
 };
 
-function getWeakestSkill(profile) {
-  const skills = {
-    Driving: profile?.skill_driving || 3,
-    'Iron Play': profile?.skill_iron_play || 3,
-    'Short Game': profile?.skill_short_game || 3,
-    Putting: profile?.skill_putting || 3,
-    'Course Management': profile?.skill_course_management || 3,
-  };
-  return Object.entries(skills).sort((a, b) => a[1] - b[1])[0]?.[0] || 'Short Game';
-}
-
-export default function CoachBriefing({ session, profile, drillRatings, onStart, onClose }) {
+export default function CoachBriefing({ session, drillRatings, onStart, onClose }) {
   const [briefing, setBriefing] = useState('');
   const [loading, setLoading] = useState(true);
   const colors = SESSION_TYPE_COLORS[session.session_type] || SESSION_TYPE_COLORS['Rest & Recovery'];
@@ -43,14 +32,14 @@ export default function CoachBriefing({ session, profile, drillRatings, onStart,
 
     const generate = async () => {
       try {
-        const weakest = getWeakestSkill(profile);
         const recentRatings = (drillRatings || []).slice(0, 10);
         const ratingsSummary = recentRatings.length > 0
           ? recentRatings.map(r => `${r.drill_name}: ${r.rating}`).join(', ')
           : 'No recent history';
+        const drillNames = drills.map(d => d.name).filter(Boolean).join(', ') || session.session_type;
 
         const result = await invokeLLM({
-          prompt: `Give a motivating 2 sentence pre-session briefing for a golfer about to do a ${session.session_type} session. Their weakest skill is ${weakest}. Recent drill ratings: ${ratingsSummary}. Keep it direct, specific and motivating. No fluff. No bullet points. Just 2 sentences.`,
+          prompt: `Give a motivating 2 sentence pre-session briefing for a golfer about to do a "${session.title || session.session_type}" session. Today's drills: ${drillNames}. The briefing must be about this session's focus only — do not mention other areas of their game. Recent drill ratings: ${ratingsSummary}. Keep it direct, specific and motivating. No fluff. No bullet points. Just 2 sentences.`,
         });
 
         if (!timedOut) {
